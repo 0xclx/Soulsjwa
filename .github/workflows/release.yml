@@ -1,7 +1,12 @@
 # Release workflow — builds and publishes the API Docker image to GitHub
-# Container Registry (GHCR) on every push to `main` and on `v*` tags.
+# Container Registry (GHCR).
 #
 # Publishes to `ghcr.io/<owner>/soulsjwa-api`.
+#
+# Push to `main` is gated on the CI workflow succeeding first (via
+# `workflow_run`), so a broken build/test run never gets published. Tag
+# pushes (`v*`) and manual dispatch publish immediately — CI doesn't run on
+# tag pushes, so there's nothing to gate on there.
 #
 # Tags produced per build (via docker/metadata-action):
 #   - sha-<full-sha>   ← pin this in docker-compose.prod.yml for prod
@@ -12,13 +17,16 @@
 name: release
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
+  push:
     tags: ['v*']
   workflow_dispatch:
 
 concurrency:
-  group: release-${{ github.workflow }}-${{ github.ref }}
+  group: release-${{ github.workflow }}-${{ github.event.workflow_run.head_sha || github.sha }}
   cancel-in-progress: false
 
 permissions:
@@ -28,8 +36,11 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: docker/setup-buildx-action@v3
 
