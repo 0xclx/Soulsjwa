@@ -23,7 +23,7 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- DPAPI (CurrentUser scope) for the API key in connector-config.json. -->
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.11" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
     <!--
       SoulMemory is GPL-3 (https://github.com/FrankvdStam/SoulSplitter).
       Linking it into this connector is the reason the whole repo is GPL-3.
