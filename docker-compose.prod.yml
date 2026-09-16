@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: soulsjwa
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # migrate: pulls the tagged image, applies EF Core migrations, then exits
+  # (code 0). The api service reuses the same tagged image and only starts
+  # once this service completes successfully.
+  migrate:
+    image: ghcr.io/0xclx/soulsjwa-api:${IMAGE_TAG}
+    pull_policy: always
+    command: ["--migrate"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=soulsjwa;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      Jwt__Secret: "${JWT_SECRET}"
+      Twitch__ClientId: "${TWITCH_CLIENT_ID}"
+      Twitch__ClientSecret: "${TWITCH_CLIENT_SECRET}"
+      Twitch__RedirectUri: "${TWITCH_REDIRECT_URI}"
+      OpenTelemetry__Enabled: "${OpenTelemetry__Enabled:-false}"
+
+  api:
+    image: ghcr.io/0xclx/soulsjwa-api:${IMAGE_TAG}
+    pull_policy: always
+    # Bound to localhost only — this service must sit behind a reverse proxy
+    # (nginx/Caddy/Traefik) on the host, never exposed directly.
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    volumes:
+      - media_data:/data/media
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=soulsjwa;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      Jwt__Secret: "${JWT_SECRET}"
+      Jwt__Issuer: "soulsjwa"
+      Jwt__Audience: "soulsjwa"
+      Twitch__ClientId: "${TWITCH_CLIENT_ID}"
+      Twitch__ClientSecret: "${TWITCH_CLIENT_SECRET}"
+      Twitch__RedirectUri: "${TWITCH_REDIRECT_URI}"
+      Frontend__Url: "${FRONTEND_URL}"
+      Admin__BootstrapTwitchLogin: "${Admin__BootstrapTwitchLogin:-}"
+      # Twitch extension backend (docs/twitch-extension.md); all optional.
+      TwitchExtension__ClientId: "${TWITCH_EXTENSION_CLIENT_ID:-}"
+      TwitchExtension__Secret: "${TWITCH_EXTENSION_SECRET:-}"
+      TwitchExtension__OwnerUserId: "${TWITCH_EXTENSION_OWNER_USER_ID:-}"
+      OpenTelemetry__Enabled: "${OpenTelemetry__Enabled:-false}"
+      AllowedHosts: "${ALLOWED_HOSTS}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:
+  media_data:
