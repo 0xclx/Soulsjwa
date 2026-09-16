@@ -1,0 +1,6 @@
+dist
+dist-twitch
+soulsjwa-twitch-extension.zip
+coverage
+node_modules
+package-lock.json

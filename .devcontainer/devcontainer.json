@@ -1,0 +1,81 @@
+{
+  "name": "Soulsjwa",
+  "dockerComposeFile": "docker-compose.devcontainer.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspaces/Soulsjwa",
+  "shutdownAction": "stopCompose",
+
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+
+  "containerEnv": {
+    "HOME": "/home/devuser",
+    "HISTFILE": "/home/devuser/.bash_history"
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "dotnet.defaultSolution": "Soulsjwa.slnx",
+        "editor.formatOnSave": true,
+        "editor.bracketPairColorization.enabled": true,
+        "typescript.preferences.importModuleSpecifier": "relative",
+        "eslint.workingDirectories": ["src/Soulsjwa.Web"],
+        "files.eol": "\n",
+        "terminal.integrated.allowedLinkSchemes": ["https", "http"],
+        "security.workspace.trust.enabled": true,
+        "chat.agent.maxRequests": 15,
+        "github.copilot.chat.agent.runCommand.terminalAllowList": [
+          "git status",
+          "git diff",
+          "git log",
+          "git branch",
+          "git show",
+          "grep",
+          "find",
+          "pwd",
+          "ls",
+          "cat",
+          "head",
+          "tail",
+          "wc",
+          "dotnet build",
+          "dotnet test",
+          "dotnet restore",
+          "dotnet format",
+          "dotnet ef",
+          "npm ci",
+          "npm run lint",
+          "npm run build",
+          "npm test",
+          "npm run test:coverage",
+          "npm run dev"
+        ]
+      },
+      "extensions": [
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.csharp",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker",
+        "eamodio.gitlens",
+        "bradlc.vscode-tailwindcss",
+        "humao.rest-client",
+        "GitHub.copilot",
+        "GitHub.copilot-chat"
+      ]
+    }
+  },
+
+  "forwardPorts": [5000, 5173, 5432],
+  "portsAttributes": {
+    "5000": { "label": "API", "onAutoForward": "notify" },
+    "5173": { "label": "Vite Dev Server", "onAutoForward": "openBrowser" },
+    "5432": { "label": "PostgreSQL", "onAutoForward": "silent" }
+  },
+
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "remoteUser": "devuser"
+}

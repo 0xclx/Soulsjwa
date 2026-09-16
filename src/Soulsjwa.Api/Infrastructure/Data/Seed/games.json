@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "name": "Dark Souls: Remastered",
+    "description": "Action RPG known for its challenging gameplay and interconnected world design.",
+    "connectorSupported": true,
+    "requiredConnectorVersion": "3.2.0"
+  },
+  {
+    "id": 2,
+    "name": "Dark Souls II: Scholar of the First Sin",
+    "description": "Sequel featuring a new world with expanded multiplayer and build variety.",
+    "connectorSupported": true,
+    "requiredConnectorVersion": "3.2.0"
+  },
+  {
+    "id": 3,
+    "name": "Dark Souls III",
+    "description": "The final entry in the Dark Souls trilogy with faster combat and refined mechanics.",
+    "connectorSupported": true,
+    "requiredConnectorVersion": "3.2.0"
+  },
+  {
+    "id": 6,
+    "name": "Sekiro: Shadows Die Twice",
+    "description": "Shinobi action game focused on sword combat and posture-based mechanics.",
+    "connectorSupported": true,
+    "requiredConnectorVersion": "3.2.0"
+  },
+  {
+    "id": 9,
+    "name": "Elden Ring",
+    "description": "Open-world action RPG with a vast world co-created with George R.R. Martin. Read live from the running game process via SoulMemory.",
+    "connectorSupported": true,
+    "requiredConnectorVersion": "3.3.0"
+  }
+]

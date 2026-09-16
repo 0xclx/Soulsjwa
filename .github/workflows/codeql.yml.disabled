@@ -1,0 +1,77 @@
+# ==========================================================================
+# DISABLED — CodeQL requires GitHub Advanced Security (GHAS), which is not
+# available on private repositories without the GHAS add-on.
+#
+# To re-enable:
+#   1. Enable Code Scanning under Settings → Code security → Code scanning.
+#   2. Rename this file back to codeql.yml (drop the .disabled suffix).
+# ==========================================================================
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly run on Mondays at 06:00 UTC catches dependency-driven advisories
+    # even on long-quiet branches.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write  # required by codeql-action/analyze to upload SARIF
+  actions: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.language == 'csharp' && 'ubuntu-latest' || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: csharp
+            build-mode: autobuild
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET (csharp only)
+        if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended,security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        # The analyze step uploads SARIF to GitHub Code Scanning, which
+        # requires GHAS / code scanning to be enabled in repo settings.
+        # continue-on-error prevents the workflow from failing when the
+        # feature isn't enabled yet; results are still available via the
+        # uploaded artifact below.
+        continue-on-error: true
+        with:
+          category: /language:${{ matrix.language }}
+          output: sarif-results
+
+      - name: Upload SARIF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-sarif-${{ matrix.language }}
+          path: sarif-results
+          retention-days: 30

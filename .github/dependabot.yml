@@ -1,0 +1,46 @@
+# Dependabot configuration
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Version updates work on private repositories without any add-on. Minor and
+# patch bumps are grouped per ecosystem so a week's updates arrive as one PR
+# per ecosystem rather than one per package; majors stay separate so they can
+# be reviewed on their own.
+version: 2
+updates:
+  # .NET (NuGet) dependencies — every project under the solution
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      dotnet-minor:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Frontend (npm) dependencies
+  - package-ecosystem: "npm"
+    directory: "/src/Soulsjwa.Web"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      npm-minor:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+
+  # Docker base images (Dockerfile at the repo root)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2

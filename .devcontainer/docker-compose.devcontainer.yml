@@ -1,0 +1,57 @@
+services:
+  devcontainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    read_only: true
+    volumes:
+      - ..:/workspaces/Soulsjwa:cached
+      - devuser-home:/home/devuser
+      - nuget-cache:/home/devuser/.nuget
+    command: sleep infinity
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=soulsjwa_dev;Username=postgres;Password=postgres"
+      # ⚠️ DEV ONLY – auto-generated secret, never use in production.
+      # This value is deterministic so the devcontainer works without manual
+      # configuration, but it is NOT a real secret and must not be reused.
+      Jwt__Secret: "devcontainer-only-not-a-real-secret!!"
+      Jwt__Issuer: "soulsjwa"
+      Jwt__Audience: "soulsjwa"
+      ASPNETCORE_ENVIRONMENT: Development
+      Frontend__Url: "http://localhost:5173"
+      # Prevent .NET CLI telemetry from leaking environment data
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+      DOTNET_NOLOGO: "true"
+    # Drop all Linux capabilities and add back only what's needed
+    cap_drop:
+      - ALL
+    # Prevent privilege escalation inside the container
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:exec,size=512M
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: soulsjwa_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  devuser-home:
+  nuget-cache:

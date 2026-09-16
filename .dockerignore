@@ -1,0 +1,11 @@
+**/.git
+**/.gitignore
+**/node_modules
+**/dist
+**/wwwroot
+**/*.user
+**/.vs
+**/obj
+**/bin
+**/.env
+tests/

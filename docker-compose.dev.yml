@@ -1,0 +1,17 @@
+# Local-development overlay. NOT loaded by default: the stock
+# `docker compose up` runs the stack the way a deployment does (Production
+# environment, strict CSP, HSTS, placeholder JWT secret refused, no
+# Development-only routes, no auto-migration in the api container).
+#
+# Opt in when you want the Development behaviour inside the container:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# This file used to be docker-compose.override.yml, which Compose merges
+# automatically — so every `docker compose up`, including on servers, silently
+# ran a Development host. That masked connector bugs that only surfaced against
+# a real deployment.
+services:
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development

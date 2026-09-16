@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Soulsjwa.Api/Soulsjwa.Api.csproj" />
+    <Project Path="src/Soulsjwa.Connector/Soulsjwa.Connector.csproj" />
+    <Project Path="src/Soulsjwa.Shared/Soulsjwa.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Soulsjwa.ApiTests/Soulsjwa.ApiTests.csproj" />
+    <Project Path="tests/Soulsjwa.ConnectorTests/Soulsjwa.ConnectorTests.csproj" />
+    <Project Path="tests/Soulsjwa.IntegrationTests/Soulsjwa.IntegrationTests.csproj" />
+    <Project Path="tests/Soulsjwa.UnitTests/Soulsjwa.UnitTests.csproj" />
+  </Folder>
+</Solution>

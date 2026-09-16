@@ -1,0 +1,305 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded runs for the same ref to save runner time.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least-privilege default. Individual jobs widen permissions only where needed
+# (e.g. the test reporter needs `checks: write`).
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  NODE_VERSION: '26'   # same major as the Dockerfile's node:26-alpine and the devcontainer
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Backend lint (formatting / style). Fast feedback, no build required.
+  # ---------------------------------------------------------------------------
+  backend-lint:
+    name: Backend lint (dotnet format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore Soulsjwa.slnx
+
+      - name: Verify formatting
+        run: dotnet format Soulsjwa.slnx --verify-no-changes --no-restore --verbosity minimal
+
+      # The two SoulMemory-derived catalog files are generated; a hand edit
+      # or a stale regeneration fails here. Fetches the pinned SoulSplitter
+      # sources from GitHub (see the script for the commit).
+      - name: Verify the SoulMemory catalogs match the generator
+        run: python3 tools/generate_soulmemory_catalog.py --check
+
+  # ---------------------------------------------------------------------------
+  # Backend unit tests (fast, no Docker required).
+  # ---------------------------------------------------------------------------
+  backend-unit:
+    name: Backend unit tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write    # required by the test reporter to publish a check run
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore Soulsjwa.slnx
+
+      - name: Build
+        run: dotnet build Soulsjwa.slnx --no-restore -c Release
+
+      - name: Unit Tests (with coverage)
+        run: >
+          dotnet test tests/Soulsjwa.UnitTests/
+          --no-build -c Release
+          --logger "trx;LogFileName=unit.trx"
+          --results-directory ./TestResults/unit
+          --collect:"XPlat Code Coverage"
+
+      - name: Publish test report
+        uses: dorny/test-reporter@v3
+        if: always()
+        with:
+          name: Backend unit tests
+          path: TestResults/unit/**/*.trx
+          reporter: dotnet-trx
+          fail-on-error: false
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: backend-unit-results
+          path: |
+            TestResults/unit/**/*.trx
+            TestResults/unit/**/coverage.cobertura.xml
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Backend HTTP / integration tests. Use Testcontainers (require Docker, which
+  # ships preinstalled on the GitHub-hosted ubuntu runners).
+  # ---------------------------------------------------------------------------
+  backend-api:
+    name: Backend HTTP/integration tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore Soulsjwa.slnx
+
+      - name: Build
+        run: dotnet build Soulsjwa.slnx --no-restore -c Release
+
+      # Integration first, deliberately: it runs against real Postgres with no
+      # web host, so it is a fraction of the API suite's cost per test.
+      # Anything that breaks the schema, the migrations or the shared container
+      # breaks both, so the cheap suite is the one that should report it. A
+      # failure here stops the job before the expensive suite runs — that is
+      # the default step behaviour, so there is no `if:` to add, and
+      # deliberately no `if: always()` on the API step below.
+      - name: Integration Tests (with coverage)
+        run: >
+          dotnet test tests/Soulsjwa.IntegrationTests/
+          --no-build -c Release
+          --logger "trx;LogFileName=integration.trx"
+          --results-directory ./TestResults/integration
+          --collect:"XPlat Code Coverage"
+
+      - name: Api Tests (with coverage)
+        run: >
+          dotnet test tests/Soulsjwa.ApiTests/
+          --no-build -c Release
+          --logger "trx;LogFileName=api.trx"
+          --results-directory ./TestResults/api
+          --collect:"XPlat Code Coverage"
+
+      - name: Publish test report
+        uses: dorny/test-reporter@v3
+        if: always()
+        with:
+          name: Backend HTTP/integration tests
+          path: TestResults/**/*.trx
+          reporter: dotnet-trx
+          fail-on-error: false
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: backend-api-results
+          path: |
+            TestResults/**/*.trx
+            TestResults/**/coverage.cobertura.xml
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Connector is a WPF (net10.0-windows) project, so it is built AND tested on
+  # Windows to exercise the same toolchain end-users build against.
+  # ConnectorTests target net10.0-windows and therefore require the Windows
+  # Desktop runtime, which is only available on the windows-latest runner.
+  # ---------------------------------------------------------------------------
+  connector:
+    name: Connector build & tests (Windows)
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: |
+          dotnet restore src/Soulsjwa.Connector/Soulsjwa.Connector.csproj
+          dotnet restore tests/Soulsjwa.ConnectorTests/Soulsjwa.ConnectorTests.csproj
+
+      - name: Build
+        run: |
+          dotnet build src/Soulsjwa.Connector/Soulsjwa.Connector.csproj --no-restore -c Release
+          dotnet build tests/Soulsjwa.ConnectorTests/Soulsjwa.ConnectorTests.csproj --no-restore -c Release
+
+      - name: Connector Tests (with coverage)
+        run: >
+          dotnet test tests/Soulsjwa.ConnectorTests/
+          --no-build -c Release
+          --logger "trx;LogFileName=connector.trx"
+          --results-directory ./TestResults/connector
+          --collect:"XPlat Code Coverage"
+
+      - name: Publish test report
+        uses: dorny/test-reporter@v3
+        if: always()
+        with:
+          name: Connector tests
+          path: TestResults/connector/**/*.trx
+          reporter: dotnet-trx
+          fail-on-error: false
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: connector-results
+          path: |
+            TestResults/connector/**/*.trx
+            TestResults/connector/**/coverage.cobertura.xml
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # THIRD-PARTY-NOTICES.md must reflect the current dependency set. Regenerate
+  # it and fail if that produces a diff — a dependency changed without
+  # regenerating notices in the same PR (AGENTS.md §2, §6).
+  # ---------------------------------------------------------------------------
+  third-party-notices:
+    name: Third-party notices up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: src/Soulsjwa.Web/package-lock.json
+
+      - name: Restore .NET
+        run: dotnet restore Soulsjwa.slnx
+
+      - name: Install frontend dependencies
+        working-directory: src/Soulsjwa.Web
+        run: npm ci
+
+      - name: Regenerate THIRD-PARTY-NOTICES.md
+        run: tools/generate_third_party_notices.sh
+
+      - name: Fail if the regenerated file differs from what's committed
+        run: git diff --exit-code -- THIRD-PARTY-NOTICES.md
+
+  # ---------------------------------------------------------------------------
+  # Frontend: lint, test, build. Coverage produced via vitest --coverage.
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: Frontend lint / test / build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Soulsjwa.Web
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: src/Soulsjwa.Web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests (with coverage)
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+      # The Twitch-hosted extension bundle (docs/twitch-extension.md), as a
+      # build check. The deployable zip comes from the running server's admin
+      # page, which writes the deployment's API origin into it.
+      - name: Build Twitch extension bundle
+        run: npm run build:twitch
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: frontend-coverage
+          path: src/Soulsjwa.Web/coverage/lcov.info
+          if-no-files-found: warn

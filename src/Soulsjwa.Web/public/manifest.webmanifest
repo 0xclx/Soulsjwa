@@ -1,0 +1,18 @@
+{
+  "name": "Soulsjwa",
+  "short_name": "Soulsjwa",
+  "description": "Event management and scoreboard app for Souls competitions.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#6D28D9",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

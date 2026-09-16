@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!--
+      The connector's version has exactly one source: ConnectorConstants.Version
+      in Soulsjwa.Shared, which is what the connector reports to the server and
+      what the server requires of connectors. The assembly version and the
+      published exe filename (Soulsjwa.Connector-<Version>-win-x64.exe, see the
+      Dockerfile's connector-build stage) are read from that file here so they
+      can never disagree with it again — the exe once said 0.1.0 while the
+      connector inside reported 3.3.0.
+    -->
+    <ConnectorConstantsFile>$(MSBuildThisFileDirectory)../Soulsjwa.Shared/ConnectorConstants.cs</ConnectorConstantsFile>
+    <Version>$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText('$(ConnectorConstantsFile)')), '(?s).*Version = "([^"]+)".*', '$1'))</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!-- DPAPI (CurrentUser scope) for the API key in connector-config.json. -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.11" />
+    <!--
+      SoulMemory is GPL-3 (https://github.com/FrankvdStam/SoulSplitter).
+      Linking it into this connector is the reason the whole repo is GPL-3.
+      Used to read live process memory of DS1R / DS2 SOTFS / DS3 / Sekiro /
+      Elden Ring.
+    -->
+    <PackageReference Include="SoulMemory" Version="1.8.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Soulsjwa.Shared\Soulsjwa.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Soulsjwa.ConnectorTests" />
+  </ItemGroup>
+
+</Project>

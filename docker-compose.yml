@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: soulsjwa
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # migrate: builds and tags the image as soulsjwa-api, applies EF Core migrations,
+  # then exits (code 0). The api service reuses the same tagged image without
+  # rebuilding and only starts once this service completes successfully.
+  migrate:
+    build: .
+    image: soulsjwa-api
+    command: ["--migrate"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=soulsjwa;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
+      Jwt__Secret: "${JWT_SECRET}"
+      Twitch__ClientId: "${TWITCH_CLIENT_ID}"
+      Twitch__ClientSecret: "${TWITCH_CLIENT_SECRET}"
+      Twitch__RedirectUri: "http://localhost:${API_PORT:-8080}/api/v1/auth/twitch/callback"
+      OpenTelemetry__Enabled: "${OpenTelemetry__Enabled:-false}"
+
+  api:
+    image: soulsjwa-api
+    pull_policy: never
+    ports:
+      - "${API_PORT:-8080}:8080"
+    volumes:
+      - media_data:/data/media
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=soulsjwa;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
+      Jwt__Secret: "${JWT_SECRET}"
+      Jwt__Issuer: "soulsjwa"
+      Jwt__Audience: "soulsjwa"
+      Twitch__ClientId: "${TWITCH_CLIENT_ID}"
+      Twitch__ClientSecret: "${TWITCH_CLIENT_SECRET}"
+      Twitch__RedirectUri: "http://localhost:${API_PORT:-8080}/api/v1/auth/twitch/callback"
+      Frontend__Url: "http://localhost:${API_PORT:-8080}"
+      Admin__BootstrapTwitchLogin: "${Admin__BootstrapTwitchLogin:-}"
+      # Twitch extension backend (docs/twitch-extension.md); all optional.
+      TwitchExtension__ClientId: "${TWITCH_EXTENSION_CLIENT_ID:-}"
+      TwitchExtension__Secret: "${TWITCH_EXTENSION_SECRET:-}"
+      TwitchExtension__OwnerUserId: "${TWITCH_EXTENSION_OWNER_USER_ID:-}"
+      OpenTelemetry__Enabled: "${OpenTelemetry__Enabled:-false}"
+      AllowedHosts: "${ALLOWED_HOSTS:-*}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:
+  media_data:
