@@ -127,7 +127,9 @@ erDiagram
         uuid Id PK
         string TwitchId UK
         string TwitchLogin
-        string DisplayName
+        string DisplayName "effective: override or Twitch"
+        string TwitchDisplayName
+        string DisplayNameOverride "nullable, max 50"
         string Email "nullable"
         string ProfileImageUrl "nullable"
         int Role "User|Admin enum"
@@ -350,7 +352,9 @@ erDiagram
 | `Id` | `uuid` | PK, auto-generated |
 | `TwitchId` | `text` | NOT NULL, **unique index** |
 | `TwitchLogin` | `text` | NOT NULL |
-| `DisplayName` | `text` | NOT NULL |
+| `DisplayName` | `text` | NOT NULL; the effective name every surface shows: `DisplayNameOverride` when set, else `TwitchDisplayName`, kept in sync by `User.SetTwitchDisplayName` / `SetDisplayNameOverride` |
+| `TwitchDisplayName` | `text` | NOT NULL; the name Twitch last reported, refreshed on every sign-in (a pending invite's login until then). Backfilled from `DisplayName` by `AddDisplayNameOverride` |
+| `DisplayNameOverride` | `varchar(50)` | nullable; a name the user or an admin chose. Takes precedence over Twitch's and survives sign-in |
 | `Email` | `text` | nullable |
 | `ProfileImageUrl` | `text` | nullable |
 | `Role` | `integer` | NOT NULL, default `0` (`User`); `Admin` = `1` |

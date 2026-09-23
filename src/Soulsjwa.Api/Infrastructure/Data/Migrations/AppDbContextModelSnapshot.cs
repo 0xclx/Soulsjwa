@@ -230,6 +230,10 @@ namespace Soulsjwa.Api.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("DisplayNameOverride")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<string>("Email")
                         .HasColumnType("text");
 
@@ -241,6 +245,10 @@ namespace Soulsjwa.Api.Infrastructure.Data.Migrations
 
                     b.Property<int>("Role")
                         .HasColumnType("integer");
+
+                    b.Property<string>("TwitchDisplayName")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("TwitchId")
                         .IsRequired()

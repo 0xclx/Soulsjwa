@@ -57,6 +57,10 @@ export const AdminFeatureFlagsPage = page(
   () => import('../pages/AdminFeatureFlagsPage'),
   'AdminFeatureFlagsPage',
 )
+export const AdminSampleDataPage = page(
+  () => import('../pages/AdminSampleDataPage'),
+  'AdminSampleDataPage',
+)
 export const AdminLegalPage = page(() => import('../pages/AdminLegalPage'), 'AdminLegalPage')
 export const AdminThemePage = page(() => import('../pages/AdminThemePage'), 'AdminThemePage')
 export const AdminTwitchExtensionPage = page(

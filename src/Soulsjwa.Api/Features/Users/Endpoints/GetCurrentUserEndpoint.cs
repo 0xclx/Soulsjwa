@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Soulsjwa.Api.Common.Interfaces;
+using Soulsjwa.Api.Features.Auth.Entities;
 using Soulsjwa.Api.Features.Events;
 using Soulsjwa.Api.Infrastructure.Data;
 using Soulsjwa.Api.Common;
@@ -15,7 +16,22 @@ public sealed record UserResponse(
     string? ProfileImageUrl,
     DateTime CreatedAt,
     string Role,
-    bool IsAllowlisted);
+    bool IsAllowlisted,
+    string TwitchDisplayName,
+    string? DisplayNameOverride)
+{
+    public static UserResponse From(User user) => new(
+        user.Id,
+        user.TwitchLogin,
+        user.DisplayName,
+        user.Email,
+        user.ProfileImageUrl,
+        user.CreatedAt,
+        user.Role.ToString(),
+        user.IsAllowlisted,
+        user.TwitchDisplayName,
+        user.DisplayNameOverride);
+}
 
 public class GetCurrentUserEndpoint : IEndpoint
 {
@@ -38,14 +54,6 @@ public class GetCurrentUserEndpoint : IEndpoint
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
         if (user is null) return Results.NotFound();
 
-        return Results.Ok(new UserResponse(
-            user.Id,
-            user.TwitchLogin,
-            user.DisplayName,
-            user.Email,
-            user.ProfileImageUrl,
-            user.CreatedAt,
-            user.Role.ToString(),
-            user.IsAllowlisted));
+        return Results.Ok(UserResponse.From(user));
     }
 }

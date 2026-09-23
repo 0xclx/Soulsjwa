@@ -1,4 +1,5 @@
 import type {
+  CreatedSampleEvent,
   AdminUserSummary,
   AllowlistEntry,
   AuditLogPage,
@@ -67,6 +68,23 @@ export const adminApi = {
     const { data } = await apiClient.patch<AdminUserSummary>(`/admin/users/${userId}/role`, {
       role,
     })
+    return data
+  },
+
+  createSampleEvents: async (): Promise<CreatedSampleEvent[]> => {
+    const { data } = await apiClient.post<{ events: CreatedSampleEvent[] }>('/admin/sample-events')
+    return data.events
+  },
+
+  /** `null` clears the override and restores the user's Twitch name. */
+  setUserDisplayName: async (
+    userId: string,
+    displayName: string | null,
+  ): Promise<AdminUserSummary> => {
+    const { data } = await apiClient.patch<AdminUserSummary>(
+      `/admin/users/${userId}/display-name`,
+      { displayName },
+    )
     return data
   },
 

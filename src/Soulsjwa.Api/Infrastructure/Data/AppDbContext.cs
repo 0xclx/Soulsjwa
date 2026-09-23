@@ -51,6 +51,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.TwitchId).IsRequired();
             e.Property(x => x.TwitchLogin).IsRequired();
             e.Property(x => x.DisplayName).IsRequired();
+            e.Property(x => x.TwitchDisplayName).IsRequired();
+            e.Property(x => x.DisplayNameOverride).HasMaxLength(User.DisplayNameOverrideMaxLength);
             e.Property(x => x.Role).HasConversion<int>();
         });
 

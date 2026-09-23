@@ -116,6 +116,8 @@ public class CompetitorAndDelegationTests : IntegrationTestBase
         var after = CreateDbContext();
         var placeholder = await after.Users.SingleAsync(u => u.TwitchLogin == handle.ToLowerInvariant());
         placeholder.IsAllowlisted.Should().BeTrue("the invitation is what grants them access");
+        placeholder.TwitchDisplayName.Should().Be(handle.ToLowerInvariant(), "until they sign in, the login is the only name there is");
+        placeholder.DisplayName.Should().Be(placeholder.TwitchDisplayName);
         (await after.AllowlistedTwitchLogins.AnyAsync(a => a.TwitchLogin == handle.ToLowerInvariant()))
             .Should().BeTrue();
         (await after.EventCompetitors.AnyAsync(c => c.EventId == ev.Id && c.UserId == placeholder.Id))

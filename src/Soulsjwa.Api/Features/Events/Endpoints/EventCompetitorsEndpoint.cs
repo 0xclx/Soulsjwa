@@ -261,9 +261,9 @@ public class EventCompetitorsEndpoint : IEndpoint
         {
             TwitchId = PendingUserMarker.For(login),
             TwitchLogin = login,
-            DisplayName = login,
             IsAllowlisted = true,
         };
+        placeholder.SetTwitchDisplayName(login);
         db.Users.Add(placeholder);
 
         // Allowlist the handle too so /admin/allowlist stays the canonical

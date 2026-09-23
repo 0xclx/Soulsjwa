@@ -25,6 +25,7 @@ graph LR
 
     subgraph "Users"
         U1["GET /users/me"]
+        U6["PATCH /users/me/display-name"]
         U2["GET /users/me/api-keys"]
         U3["POST /users/me/api-keys"]
         U4["DELETE /users/me/api-keys/{id:guid}"]
@@ -165,8 +166,10 @@ graph LR
         AD3["DELETE /admin/allowlist/{id:guid}"]
         AD4["GET /admin/users"]
         AD5["PATCH /admin/users/{id:guid}/role"]
+        AD9["PATCH /admin/users/{id:guid}/display-name"]
         AD6["GET /admin/feature-flags/{key}"]
         AD7["PUT /admin/feature-flags/{key}"]
+        AD8["POST /admin/sample-events"]
     end
 
     subgraph "Games"
@@ -256,7 +259,19 @@ Returns the authenticated user's profile.
 | | |
 |---|---|
 | **Auth** | Required |
-| **Response** | `200 { id, twitchLogin, displayName, email?, profileImageUrl?, createdAt, role, isAllowlisted }` |
+| **Response** | `200 UserResponse` = `{ id, twitchLogin, displayName, email?, profileImageUrl?, createdAt, role, isAllowlisted, twitchDisplayName, displayNameOverride? }` |
+
+`displayName` is the name every surface shows: `displayNameOverride` when one is set, otherwise `twitchDisplayName` (what Twitch reported at the last sign-in). Signing in never changes an override.
+
+### `PATCH /users/me/display-name`
+Sets or clears the caller's display-name override. The value is trimmed and must then be 1–50 characters with no control characters; `null`, `""` or whitespace clears the override and restores the Twitch name. When the shown name changes, a `user.display_name_changed` audit is written (actor and subject: the caller; `before`/`after`: `{ displayName, displayNameOverride }`) and the cached scoreboard of every event the caller competes in (also `/scores`, the overlay and the Twitch extension) and the global calendar are evicted. Setting an override equal to the Twitch name stores it (it then survives a later Twitch rename) but audits and evicts nothing.
+
+| | |
+|---|---|
+| **Auth** | Required |
+| **Request** | `{ displayName: string \| null }` |
+| **Response** | `200 UserResponse` |
+| **Errors** | `400` (validation, keyed `displayName`), `401` |
 
 ### `GET /me/events`
 Returns all events involving the authenticated user, grouped into `competitor`, `delegated`, and `owned` arrays. Competitor/delegate summaries include score, rank, objective progress, and latest activity; owner summaries include competitor count and latest activity. Archived events remain visible.
@@ -1206,7 +1221,7 @@ Removes an allowlist entry. If a user with that Twitch login already signed up, 
 | **Errors** | `404` |
 
 ### `GET /admin/users?page=1&pageSize=20&search=login`
-Paginated list of all users.
+Paginated list of all users. `AdminUserSummary` = `{ id, twitchLogin, displayName, role, isAllowlisted, createdAt, twitchDisplayName, displayNameOverride? }`; `displayName` is the effective name (see `GET /users/me`).
 
 | | |
 |---|---|
@@ -1222,6 +1237,25 @@ Sets a user's role.
 | **Request** | `{ role: "User" \| "Admin" }` |
 | **Response** | `200 AdminUserSummary` |
 | **Errors** | `400` (invalid role), `404`, `409` (demoting the last remaining admin) |
+
+### `PATCH /admin/users/{id:guid}/display-name`
+Sets or clears any user's display-name override, with the same validation, audit (`user.display_name_changed`, actor: the admin, subject: the user) and cache eviction as `PATCH /users/me/display-name`.
+
+| | |
+|---|---|
+| **Auth** | Required (admin) |
+| **Request** | `{ displayName: string \| null }` |
+| **Response** | `200 AdminUserSummary` |
+| **Errors** | `400` (validation, keyed `displayName`), `403`, `404` |
+
+### `POST /admin/sample-events`
+Creates the fixed set of five sample events for UI testing, owned by the caller: `Sample: Not started`, `Sample: Game in progress` (second game enabled, rules text), `Sample: Between games` (started, no game enabled), `Sample: Many games` (seven games) and `Sample: Empty setup` (no games). The games are custom games with fixed objectives. There are no competitors (add them by hand), and nothing is featured, aliased or random: every call creates the same content as a fresh set. All five are created in one transaction, each with an `event.created` audit (`after: { name, sample: true }`). Archive them to hide them.
+
+| | |
+|---|---|
+| **Auth** | Required (admin) |
+| **Response** | `201 { events: [{ id, name }] }` (5 items, in the order above) |
+| **Errors** | `401`, `403` |
 
 ### `GET /admin/audits?page=1&pageSize=20&type=...`
 Lists all audit entries, including non-event-scoped admin actions. Supports optional filters and, alongside `page`/`pageSize`, keyset pagination via `cursor` (see the Audit Endpoints section below for the full pagination contract).

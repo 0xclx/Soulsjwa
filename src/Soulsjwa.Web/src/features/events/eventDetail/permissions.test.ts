@@ -15,6 +15,8 @@ const makeUser = (over: Partial<User> = {}): User => ({
   createdAt: '2024-01-01T00:00:00Z',
   role: 'User',
   isAllowlisted: true,
+  twitchDisplayName: 'User One',
+  displayNameOverride: null,
   ...over,
 })
 

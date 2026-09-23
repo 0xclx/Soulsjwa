@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using Soulsjwa.Api.Common.Interfaces;
 using Soulsjwa.Api.Common.Models;
@@ -7,6 +8,8 @@ using Soulsjwa.Api.Features.Audits;
 using Soulsjwa.Api.Features.Audits.Services;
 using Soulsjwa.Api.Features.Auth.Entities;
 using Soulsjwa.Api.Features.Events;
+using Soulsjwa.Api.Features.Users;
+using Soulsjwa.Api.Features.Users.Endpoints;
 using Soulsjwa.Api.Infrastructure.Data;
 using Soulsjwa.Api.Common;
 
@@ -18,7 +21,14 @@ public sealed record AdminUserResponse(
     string DisplayName,
     string Role,
     bool IsAllowlisted,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string TwitchDisplayName,
+    string? DisplayNameOverride)
+{
+    public static AdminUserResponse From(User user) => new(
+        user.Id, user.TwitchLogin, user.DisplayName, user.Role.ToString(), user.IsAllowlisted, user.CreatedAt,
+        user.TwitchDisplayName, user.DisplayNameOverride);
+}
 
 public sealed record SetRoleRequest(string Role);
 
@@ -44,6 +54,15 @@ public class AdminUsersEndpoint : IEndpoint
             .WithSummary("Lists users with pagination (admin only)")
             .Produces<PaginatedResponse<AdminUserResponse>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .RequireAuthorization();
+
+        group.MapPatch("/{id:guid}/display-name", SetDisplayName)
+            .WithName("AdminSetUserDisplayName")
+            .WithSummary("Sets or clears a user's display name override (admin only)")
+            .Produces<AdminUserResponse>(StatusCodes.Status200OK)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .RequireAuthorization();
 
         group.MapPatch("/{id:guid}/role", SetRole)
@@ -83,7 +102,8 @@ public class AdminUsersEndpoint : IEndpoint
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(u => new AdminUserResponse(
-                u.Id, u.TwitchLogin, u.DisplayName, u.Role.ToString(), u.IsAllowlisted, u.CreatedAt))
+                u.Id, u.TwitchLogin, u.DisplayName, u.Role.ToString(), u.IsAllowlisted, u.CreatedAt,
+                u.TwitchDisplayName, u.DisplayNameOverride))
             .ToListAsync(ct);
 
         return Results.Ok(new PaginatedResponse<AdminUserResponse>(users, total, page, pageSize));
@@ -131,7 +151,36 @@ public class AdminUsersEndpoint : IEndpoint
         await db.SaveChangesAsync(ct);
         logger.AdminUserRoleSet(user.Id, user.Role.ToString(), actorId);
 
-        return Results.Ok(new AdminUserResponse(
-            user.Id, user.TwitchLogin, user.DisplayName, user.Role.ToString(), user.IsAllowlisted, user.CreatedAt));
+        return Results.Ok(AdminUserResponse.From(user));
+    }
+
+    /// <summary>
+    /// Sets or clears any user's display-name override, with the same rules,
+    /// audit and cache eviction as <see cref="UpdateMyDisplayNameEndpoint"/>.
+    /// </summary>
+    internal static async Task<IResult> SetDisplayName(
+        Guid id,
+        UpdateDisplayNameRequest request,
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        IAuditService audit,
+        IOutputCacheStore cache,
+        ILogger<AdminUsersEndpoint> logger,
+        CancellationToken ct)
+    {
+        if (!EventOwnership.IsAdmin(principal)) return AdminAccess.Forbid();
+
+        if (!DisplayNames.TryNormalize(request.DisplayName, out var displayNameOverride, out var error))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { [DisplayNames.FieldName] = [error!] });
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+        if (user is null)
+            return Results.Problem(detail: "User not found.", statusCode: StatusCodes.Status404NotFound);
+
+        var actorId = EventOwnership.GetUserId(principal);
+        if (await DisplayNames.ApplyAsync(db, audit, cache, user, displayNameOverride, actorId, ct))
+            logger.UserDisplayNameChanged(user.Id, user.DisplayNameOverride is not null, actorId);
+
+        return Results.Ok(AdminUserResponse.From(user));
     }
 }

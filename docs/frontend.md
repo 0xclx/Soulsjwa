@@ -47,6 +47,7 @@ graph TD
     ADMIN --> ADMIN_LEGAL["legal → AdminLegalPage"]
     ADMIN --> ADMIN_THEME["theme → AdminThemePage"]
     ADMIN --> ADMIN_TWITCH["twitch-extension → AdminTwitchExtensionPage"]
+    ADMIN --> ADMIN_SAMPLE["sample-data → AdminSampleDataPage"]
 
     style PROFILE fill:#9146ff,color:#fff
     style MY_EVENTS fill:#9146ff,color:#fff
@@ -141,7 +142,7 @@ graph TD
 | **Public access**      | No authentication required                                                                                         |
 | **Three states**       | Not started → **pre-start overview**: games in event order (objective count, points available, "Custom" chip) and the competitor roster (avatar, live dot, Twitch link, sorted by name), built from `EventResponse` with no `/scoreboard` request. Started with an enabled game → a **Current game / Whole event** switch (`ToggleButtonGroup`, `?view=event` for whole event, current game by default). Started with no enabled game → whole event only, no switch |
 | **Current game view**  | "Now playing: <game>", its objective count and "<n> of <m> done". Rows ordered by the server's per-game rank: rank, live dot, avatar, name, Twitch link, a `completed/total` progress bar ("7 of 12 objectives"), failed count when > 0, game score, event total with event rank (`910 · #2`). "Done" once every objective of the game is completed or failed |
-| **Whole event view**   | Per-game matrix: a row per competitor in event-rank order, a column per game in event order (the enabled one marked "Now playing"), then event total and rank. Each cell shows the game score, `completed/total` and the per-game `#rank`, or `—` while nobody has a result in that game |
+| **Whole event view**   | Per-game matrix: a row per competitor in event-rank order, a column per game in event order (the enabled one marked "Now playing"), with the event rank as the first column (top three bold, like the current game view) and the event total last. Each cell shows the game score, `completed/total` and the per-game `#rank`, or `—` while nobody has a result in that game |
 | **Objective dialog**   | A standings row or matrix cell opens "<player> · <game>": objectives grouped by category with completed/failed/pending marks, points and timestamps, plus the death clip/link/note editor where the viewer may edit. Closes on Esc, the close button or a backdrop click and returns focus |
 | **Search**             | Case-insensitive filter on display name or Twitch login above both views; hides rows without renumbering (ranks are always the server's), announces the match count in a polite live region, and offers "Clear search" when nothing matches. Kept across view switches |
 | **Live indicator**     | Red/green dot per player, announced as "Live"/"Offline"                                                            |
@@ -166,6 +167,7 @@ Rendering itself (pre-start overview, loading/empty/error states, both views, ca
 | Feature             | Details                                                                                                                                 |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | **User info**       | Profile surface with avatar, role, display name, Twitch login, email                                                                    |
+| **Display name**    | `DisplayNameField`: set a custom display name (1–50 characters, counter, server validation shown on the field) that overrides the Twitch name and survives sign-in; "Use Twitch name (…)" clears it. Saved through `PATCH /users/me/display-name`; the header updates at once |
 | **Logout**          | Revokes refresh token, clears session, navigates to home                                                                                |
 | **API Key Manager** | Full CRUD for API keys (create with name + optional expiry — "Never expires" / 30 d / 90 d / 1 y — list with prefix and expiry, revoke) |
 
@@ -197,11 +199,12 @@ Below the OBS overlay tokens, competitors and owners see the **Twitch extension*
 | Feature           | Details                                                                                                                                                                                 |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Allowlist tab** | List, add (Twitch login + optional note), delete entries. Deleting also revokes the linked user's refresh tokens.                                                                       |
-| **Users tab**     | Paginated list with search; promote / demote between `User` and `Admin`. The current user can't demote themselves below admin, and the server enforces "at least one admin must exist". |
+| **Users tab**     | Paginated list with search; a "Custom" chip marks users with a custom display name, and each row's edit action opens `EditDisplayNameDialog` to set or clear it (`PATCH /admin/users/{id}/display-name`); promote / demote between `User` and `Admin`. The current user can't demote themselves below admin, and the server enforces "at least one admin must exist". |
 | **Catalog tab**   | Browse, create, and edit global games; browse and create game-specific predefined objectives. |
 | **Audits tab**    | System-wide audit table with type, actor, subject, event, and date filters; event options are populated from recent events including archived ones.                                      |
 | **Feature flags tab** | Runtime toggle for My Events quick completion; updates are persisted and audited. |
 | **Twitch extension tab** | `TwitchExtensionAdminTab`: status chips (configured, push, bundle present), the Client ID / API host / extension origin the server runs with, the extension-wide rules form (event choice, viewer scope switcher, default view and toggles, saved through `PUT /admin/twitch-extension/settings`), the Twitch console setup steps, and the **Download extension zip** button that streams `GET /admin/twitch-extension/bundle` to a file. |
+| **Sample data tab** | `SampleDataTab`: lists the five fixed sample events and their states, and **Create sample events** creates a fresh set (`POST /admin/sample-events`) after a `ConfirmDialog`, then links to each created event. Works in every environment; the events are named `Sample: …`, have no competitors, and are hidden by archiving them. |
 | **Legal tab**     | `MarkdownEditor` per document (Impressum, Datenschutz), switched by a local tab, not the router — the only place an empty document can be reached, since the public routes below 404 on empty content. Each editor is preceded by an advisory callout linking the German and English baseline templates in `templates/legal/` (`legalTemplates.ts`) and reminding the operator that hosting, CDN/reverse-proxy (Cloudflare & co.) and telemetry recipients are theirs to declare; nothing here validates the document. |
 | **Theme tab**     | Background image upload (`ImageUploadField`), background treatment, font, and a colour picker per palette slot per mode (`PaletteSlotField`) with a live WCAG contrast readout — a UI hint only; `SiteThemeValidator` on the server is authoritative and the failing-pair message it returns is surfaced verbatim on save. |
 
@@ -255,6 +258,7 @@ graph TD
     OVERVIEW --> LB
     PUBLIC_SCOREBOARD --> LB
     PROFILE --> AKM["ApiKeyManager"]
+    PROFILE --> DNF["DisplayNameField"]
     ADMIN --> ALLOW["AdminOverviewPage → AllowlistTab"]
     ADMIN --> USERS["AdminUsersPage → UsersTab"]
     ADMIN --> AUDITS["AdminAuditsPage → AdminAuditsTab → AuditLogTable"]
@@ -313,11 +317,14 @@ graph TD
 | `LiveStatusLegend` / `TwitchIcon` | `features/events/components/scoreboard/` | Live/offline legend and Twitch link glyph                                        |
 | `AuditLogTable`       | `features/audits/components/` | Shared cursor-paginated ("Load more") audit table with filters and expandable before/after JSON details |
 | `AllowlistTab`        | `features/admin/components/`  | Admin allowlist management                                                                           |
-| `UsersTab`            | `features/admin/components/`  | Admin user directory/search and role controls                                                        |
+| `UsersTab`            | `features/admin/components/`  | Admin user directory/search, display-name editing and role controls                                  |
+| `EditDisplayNameDialog` | `features/admin/components/` | Admin rename of one user through `DisplayNameField`                                                |
 | `AdminAuditsTab`      | `features/admin/components/`  | System-wide audit log tab                                                                            |
 | `TwitchExtensionAdminTab` | `features/admin/components/` | Twitch extension status, extension-wide rules, setup steps and zip download                     |
+| `SampleDataTab`       | `features/admin/components/`  | Describes the sample events and creates a set behind a confirmation                                  |
 | `UserPicker`          | `features/users/components/`  | User search combobox; can allow raw Twitch handles for invitations                                  |
 | `ApiKeyManager`       | `features/users/components/`  | Create, list, revoke API keys                                                                        |
+| `DisplayNameField`    | `features/users/components/`  | Display-name override editor (50-char counter, Save, "Use Twitch name"), shared by Profile and the Users tab |
 
 ---
 
@@ -522,13 +529,15 @@ graph TD
 | `hooks/useRemoveAllowlistEntry.ts` | Mutation: remove allowlist entry                                |
 | `hooks/useAdminUsers.ts`           | Query: paginated user list with search                          |
 | `hooks/useSetUserRole.ts`          | Mutation: promote/demote a user                                 |
+| `hooks/useAdminUpdateDisplayName.ts` | Mutation: set/clear a user's display name; refreshes the user list and the current user |
 | `hooks/useAdminAudits.ts`          | Infinite query: cursor-paginated, filterable system audits (BE-026) |
 | `hooks/useAdminGames.ts`           | Query: global game catalog                                     |
 | `hooks/usePredefinedObjectiveCatalog.ts` | Query: all predefined objective templates                |
 | `hooks/useCreateGame.ts` / `hooks/useUpdateGame.ts` | Mutations: create/edit catalog games             |
 | `hooks/useCreatePredefinedObjective.ts` | Mutation: create a game-specific objective template       |
 | `components/AllowlistTab.tsx`      | Allowlist management tab (add/remove entries)                   |
-| `components/UsersTab.tsx`          | Paginated user directory with role controls                     |
+| `components/UsersTab.tsx`          | Paginated user directory with display-name and role controls    |
+| `components/EditDisplayNameDialog.tsx` | Rename dialog; closes on success, keeps errors on the field |
 | `components/AdminAuditsTab.tsx`    | System-wide audit log tab (wires `AuditLogTable`)               |
 | `components/CatalogTab.tsx`        | Game and predefined-objective catalog management                |
 | `api/twitchExtensionAdminApi.ts`   | Twitch extension admin status/rules (`/admin/twitch-extension`) and the zip download as a blob |
@@ -536,6 +545,9 @@ graph TD
 | `hooks/useUpdateTwitchExtensionSettings.ts` | Mutation: save the extension-wide rules; replaces the cached status |
 | `hooks/useDownloadTwitchExtensionBundle.ts` | Mutation: fetch the zip with the session's credentials and hand it to the browser as a download |
 | `components/TwitchExtensionAdminTab.tsx` | Status, rules form, setup steps, download button           |
+| `components/SampleDataTab.tsx` | Sample events description, create button + `ConfirmDialog`, links to the created events |
+| `hooks/useCreateSampleEvents.ts` | Mutation: `POST /admin/sample-events`; invalidates the events lists |
+| `sampleEvents.ts` | Names and states the Sample data tab describes (mirrors the server's `SampleEventCatalog`) and its copy |
 
 > **Admin architecture:** `AdminLayout` owns authorization, shared chrome, and
 > outlet context. Nested `AdminOverviewPage`, `AdminUsersPage`, and
@@ -590,12 +602,14 @@ graph TD
 
 | File                           | Description                                                                                   |
 | ------------------------------ | --------------------------------------------------------------------------------------------- |
-| `api/usersApi.ts`              | `getMe()`, `search()`, `getApiKeys()`, `createApiKey()`, `deleteApiKey()`                     |
-| `hooks/useCurrentUser.ts`      | React Query hook (only when authenticated). Returns user including `role` and `isAllowlisted` |
+| `api/usersApi.ts`              | `getMe()`, `updateMyDisplayName()`, `search()`, `getApiKeys()`, `createApiKey()`, `deleteApiKey()` |
+| `hooks/useCurrentUser.ts`      | React Query hook (only when authenticated). Returns user including `role`, `isAllowlisted`, `twitchDisplayName` and `displayNameOverride` |
+| `hooks/useUpdateMyDisplayName.ts` | Mutation: set/clear the caller's display name; writes the returned user into the current-user query |
 | `hooks/useUserSearch.ts`       | Query: debounced/thresholded user search for `UserPicker`                                     |
 | `hooks/useApiKeys.ts`          | React Query hooks for API key list/create/delete with cache invalidation                      |
 | `components/UserPicker.tsx`    | Autocomplete for known users; optionally accepts raw Twitch handles for invitations           |
 | `components/ApiKeyManager.tsx` | Full API key management UI                                                                    |
+| `components/DisplayNameField.tsx` | Display-name override editor shared by the Profile page and the admin rename dialog         |
 
 ---
 

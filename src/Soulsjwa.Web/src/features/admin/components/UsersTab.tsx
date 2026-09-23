@@ -11,12 +11,17 @@ import TableContainer from '@mui/material/TableContainer'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import TextField from '@mui/material/TextField'
+import IconButton from '@mui/material/IconButton'
+import EditIcon from '@mui/icons-material/Edit'
 import { EmptyState, ErrorMessage, LoadingState, PaginationControls } from '../../../components/ui'
 import { useAdminUsers } from '../hooks/useAdminUsers'
 import { useSetUserRole } from '../hooks/useSetUserRole'
+import { EditDisplayNameDialog } from './EditDisplayNameDialog'
+import type { AdminUserSummary } from '../../../types'
 
 /**
- * Paginated user directory with search and role promotion/demotion. The current
+ * Paginated user directory with search, display-name editing and role
+ * promotion/demotion. The current
  * user cannot demote themselves and the server enforces "at least one admin".
  */
 export const UsersTab = ({ currentUserId }: { currentUserId: string }) => {
@@ -25,6 +30,7 @@ export const UsersTab = ({ currentUserId }: { currentUserId: string }) => {
   const { data, isLoading, isError } = useAdminUsers(page, search || undefined)
   const setRole = useSetUserRole()
   const [roleError, setRoleError] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState<AdminUserSummary | null>(null)
 
   const handleSetRole = (id: string, role: 'User' | 'Admin') => {
     setRoleError(null)
@@ -45,6 +51,7 @@ export const UsersTab = ({ currentUserId }: { currentUserId: string }) => {
 
   return (
     <Stack spacing={2}>
+      {renaming && <EditDisplayNameDialog user={renaming} onClose={() => setRenaming(null)} />}
       {roleError && (
         <Alert severity="error" onClose={() => setRoleError(null)}>
           {roleError}
@@ -85,7 +92,26 @@ export const UsersTab = ({ currentUserId }: { currentUserId: string }) => {
                 return (
                   <TableRow key={u.id}>
                     <TableCell sx={{ fontFamily: 'monospace' }}>{u.twitchLogin}</TableCell>
-                    <TableCell>{u.displayName}</TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                        <span>{u.displayName}</span>
+                        {u.displayNameOverride !== null && (
+                          <Chip
+                            label="Custom"
+                            size="small"
+                            variant="outlined"
+                            title={`Twitch name: ${u.twitchDisplayName}`}
+                          />
+                        )}
+                        <IconButton
+                          size="small"
+                          aria-label={`Edit display name for ${u.displayName}`}
+                          onClick={() => setRenaming(u)}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    </TableCell>
                     <TableCell>
                       <Chip
                         label={u.role}

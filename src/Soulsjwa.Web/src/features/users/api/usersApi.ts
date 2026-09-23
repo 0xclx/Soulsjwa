@@ -13,6 +13,12 @@ export const usersApi = {
     return data
   },
 
+  /** `null` clears the override and restores the Twitch name. */
+  updateMyDisplayName: async (displayName: string | null): Promise<User> => {
+    const { data } = await apiClient.patch<User>('/users/me/display-name', { displayName })
+    return data
+  },
+
   search: async (q: string, limit = 20): Promise<UserSearchResult[]> => {
     const { data } = await apiClient.get<UserSearchResult[]>('/users/search', {
       params: { q, limit },

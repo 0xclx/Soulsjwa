@@ -53,12 +53,13 @@ describe('application routes', () => {
       'legal',
       'theme',
       'twitch-extension',
+      'sample-data',
     ])
 
     const pageTypes = adminRoute?.children?.map((route) =>
       childComponent(route.element as ReactElement),
     )
-    expect(new Set(pageTypes).size).toBe(8)
+    expect(new Set(pageTypes).size).toBe(9)
   })
 
   it('registers the public scoreboard deep link outside the app shell (chrome-free)', () => {

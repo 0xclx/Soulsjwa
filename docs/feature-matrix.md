@@ -31,6 +31,7 @@
 | **Admin role (`User.Role`)** | ✅ | ✅ | — | Admin nav link, admin-only buttons across UI |
 | **First-admin bootstrap** | ✅ | — | — | `Admin:BootstrapTwitchLogin` config; first matching Twitch login becomes admin |
 | **Twitch login allowlist** | ✅ | ✅ | — | Non-allowlisted sign-ins rejected with friendly callback error |
+| **Custom display name** | ✅ | ✅ | — | `User.DisplayNameOverride` (≤ 50 chars, free text) takes precedence over the Twitch name and survives sign-in (`TwitchDisplayName` is refreshed instead); users set/clear their own on the Profile page, admins anyone's from the Users tab; audited (`user.display_name_changed`), and cached scoreboards/overlay/Twitch extension/calendar entries are evicted on change |
 | **Admin allowlist mgmt UI** | ✅ | ✅ | — | `/admin` page → Allowlist tab |
 | **User role management** | ✅ | ✅ | — | `/admin` page → Users tab; last-admin demotion blocked |
 | **Per-event competitor list** | ✅ | ✅ | — | Owner/admin adds/removes competitors; streamer flag controls delegation |
@@ -73,6 +74,7 @@
 | Media uploads | ✅ | ✅ | — | Admin-only, content-addressed by SHA-256, magic-byte sniffed, metadata stripped, atomic write |
 | Event rules | ✅ | ✅ | — | Per-event Markdown rules page; the featured event's rules are linked from the nav |
 | Feature flags | ✅ | ✅ | — | Runtime flags (`/admin/feature-flags`), e.g. My Events quick complete |
+| Sample events | ✅ | ✅ | — | Admin `/admin/sample-data` creates the same five `Sample: …` events every time (not started; game in progress; between games; seven games; empty setup) with custom games and objectives but no competitors, after a confirmation, in any environment; archive to hide. `SampleEventSeeder` is also callable from IntegrationTests |
 
 ## Event Calendar
 

@@ -11,6 +11,10 @@ export interface User {
   createdAt: string
   role: UserRole
   isAllowlisted: boolean
+  /** What Twitch reported at the last sign-in. */
+  twitchDisplayName: string
+  /** A name the user or an admin chose; `displayName` shows it when set. */
+  displayNameOverride: string | null
 }
 
 export interface ApiKey {
@@ -308,6 +312,12 @@ export interface AllowlistEntry {
   linkedDisplayName?: string
 }
 
+/** One event created by the admin "Create sample events" action. */
+export interface CreatedSampleEvent {
+  id: string
+  name: string
+}
+
 export interface AdminUserSummary {
   id: string
   twitchLogin: string
@@ -315,6 +325,8 @@ export interface AdminUserSummary {
   role: UserRole
   isAllowlisted: boolean
   createdAt: string
+  twitchDisplayName: string
+  displayNameOverride: string | null
 }
 
 export interface UserSearchResult {

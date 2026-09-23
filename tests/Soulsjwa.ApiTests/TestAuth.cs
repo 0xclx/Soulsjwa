@@ -25,10 +25,10 @@ public static class TestAuth
         {
             TwitchId = $"twitch_{suffix}",
             TwitchLogin = login,
-            DisplayName = login,
             Role = role,
             IsAllowlisted = true,
         };
+        user.SetTwitchDisplayName(login);
         db.Users.Add(user);
 
         var (rawKey, prefix) = ApiKeyAuthHandler.GenerateApiKey();

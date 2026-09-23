@@ -503,7 +503,7 @@ describe('EventScoreboardView', () => {
       expect(within(matrix).getByText('Patches')).toBeInTheDocument()
       expect(within(matrix).queryByText('Solaire')).toBeNull()
       // Hiding the leaders renumbers nothing: Patches is still #3 in the event.
-      expect(within(matrix).getAllByRole('row')[1]?.lastElementChild?.textContent).toBe('3')
+      expect(within(matrix).getAllByRole('row')[1]?.firstElementChild?.textContent).toBe('3')
     })
   })
 })

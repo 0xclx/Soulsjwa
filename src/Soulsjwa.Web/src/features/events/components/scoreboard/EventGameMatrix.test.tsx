@@ -88,16 +88,16 @@ const cell = (player: string, game: string) =>
 describe('EventGameMatrix', () => {
   beforeEach(() => stubViewportWidth(true))
 
-  it('has a column per game in event order, then the event total and rank', () => {
+  it('has the event rank, then a column per game in event order, then the event total', () => {
     renderMatrix([makeEntry('a', 'Solaire', 1)])
 
     expect(headerCells().map((h) => h.textContent)).toEqual([
+      '#',
       'Player',
       'Dark Souls',
       'Elden RingNow playing',
       'Sekiro',
       'Total',
-      'Rank',
     ])
   })
 
@@ -108,7 +108,7 @@ describe('EventGameMatrix', () => {
       makeEntry('b', 'Second', 2),
     ])
 
-    expect(bodyRows().map((row) => within(row).getAllByRole('cell')[0]?.textContent)).toEqual([
+    expect(bodyRows().map((row) => within(row).getAllByRole('cell')[1]?.textContent)).toEqual([
       expect.stringContaining('First'),
       expect.stringContaining('Second'),
       expect.stringContaining('Third'),
@@ -151,8 +151,8 @@ describe('EventGameMatrix', () => {
     renderMatrix([makeEntry('a', 'Solaire', 4, {}, { totalScore: 910 })])
 
     const cells = within(bodyRows()[0]!).getAllByRole('cell')
-    expect(cells.at(-2)?.textContent).toBe('910')
-    expect(cells.at(-1)?.textContent).toBe('4')
+    expect(cells.at(0)?.textContent).toBe('4')
+    expect(cells.at(-1)?.textContent).toBe('910')
   })
 
   it('shows the amber trial score in a cell with a started trial, paused included', () => {

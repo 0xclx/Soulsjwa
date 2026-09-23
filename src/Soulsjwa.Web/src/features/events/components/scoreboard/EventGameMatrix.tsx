@@ -118,6 +118,7 @@ export const EventGameMatrix = ({ entries, games, query, onSelect }: EventGameMa
       <Table aria-label={MATRIX_LABEL} size="small">
         <TableHead>
           <TableRow>
+            <TableCell sx={{ width: 40 }}>#</TableCell>
             <TableCell>Player</TableCell>
             {games.map((game) => (
               <TableCell key={game.eventGameId} align="center">
@@ -134,12 +135,12 @@ export const EventGameMatrix = ({ entries, games, query, onSelect }: EventGameMa
               </TableCell>
             ))}
             <TableCell align="right">Total</TableCell>
-            <TableCell align="right">Rank</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {rows.map((entry) => (
             <TableRow key={entry.userId}>
+              <TableCell sx={{ fontWeight: entry.rank <= 3 ? 700 : 400 }}>{entry.rank}</TableCell>
               <TableCell>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <LiveDot isLive={entry.isLive} />
@@ -175,7 +176,6 @@ export const EventGameMatrix = ({ entries, games, query, onSelect }: EventGameMa
               <TableCell align="right" sx={{ fontWeight: 600 }}>
                 {entry.totalScore}
               </TableCell>
-              <TableCell align="right">{entry.rank}</TableCell>
             </TableRow>
           ))}
         </TableBody>
