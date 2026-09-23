@@ -27,6 +27,7 @@ const game = (overrides: Partial<GameBreakdown> = {}): GameBreakdown => ({
   isTrialActive: false,
   hasTrialRun: false,
   trial: null,
+  rank: 1,
   ...overrides,
 })
 

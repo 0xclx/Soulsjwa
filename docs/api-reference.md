@@ -8,6 +8,8 @@ Application endpoints are prefixed with `/api/v1/`; health checks are not. Authe
 
 **Response Compression:** HTTPS responses support gzip and Brotli compression via `Accept-Encoding`.
 
+**Timestamps:** Every time the API reads or returns is UTC; the server never uses its own time zone. Responses carry ISO 8601 UTC values (`…Z`). Request bodies and query strings accept a `Z` suffix, an explicit offset (kept as that instant), or a zone-less value, which means UTC. Clients show times in the viewer's local zone and send UTC (e.g. `Date.prototype.toISOString()`).
+
 **Unmatched Routes:** A `GET` to a path under `/api/v1/` that doesn't match any endpoint returns `404 application/problem+json` (BE-020) rather than falling through to the SPA shell. A non-`GET` request to a real route with the wrong HTTP method still gets the standard `405 Method Not Allowed`; a non-`GET` request to a path that matches no route at all also currently returns `405` rather than `404`.
 
 ## Endpoint Map
@@ -514,12 +516,19 @@ Returns the full public scoreboard for an event, including per-game and per-obje
 |---|---|
 | **Auth** | Anonymous |
 | **Cached** | Yes (1h, tagged `Scoreboard`) |
-| **Response** | `200 { entries: [{ userId, displayName, twitchLogin, profileImageUrl?, isLive, totalScore, completedCount, isFinished, lastCompletedAt, totalInGameTimeMs?, rank, games: [{ eventGameId, gameName, score, completedCount, totalObjectives, objectives: [{ objectiveId, name, score, category, isCompleted, completedAt, trial: TrialObjectiveState \| null }], infos: CompetitorInfoResponse[], hasDeathClip, isEnabled, isTrialActive, trial: TrialProgress \| null, hasTrialRun }] }], tieBreakMode }` |
+| **Response** | `200 { entries: [{ userId, displayName, twitchLogin, profileImageUrl?, isLive, totalScore, completedCount, isFinished, lastCompletedAt, totalInGameTimeMs?, rank, games: [{ eventGameId, gameName, score, completedCount, totalObjectives, objectives: [{ objectiveId, name, score, category, isCompleted, completedAt, trial: TrialObjectiveState \| null }], infos: CompetitorInfoResponse[], hasDeathClip, isEnabled, isTrialActive, trial: TrialProgress \| null, hasTrialRun, rank }] }], tieBreakMode }` |
 | **Errors** | `404` if event not found |
 
 Every figure directly on an entry — `totalScore`, `completedCount`, `failedCount`,
 `isFinished`, `status`, `lastCompletedAt`, `rank` — is official-only, computed from
 rows where `TrialRunId IS NULL`.
+
+`GameBreakdown.rank` is the competitor's rank among all competitors **for that game
+alone**, official-only like the entry's `rank`. It uses the same sort (game score, then
+the game's in-game time — reported only when every completion in that game has one —
+then the game's last completion) and the event's `tieBreakMode` (`SharedPlace` → 1, 1, 3;
+`ByTime` → strict ordinal). It is computed for every game, enabled or not. `/scores` and
+the Twitch extension payloads do not carry it.
 
 Trial/training progress is reported **beside** those figures and never
 folded into them:
@@ -723,7 +732,7 @@ Creates a calendar entry.
 | | |
 |---|---|
 | **Auth** | Required (owner or admin) |
-| **Request** | `{ title, descriptionMarkdown?, startsAt, endsAt, isAllDay, isHighlighted, color, imageAssetId? }` — `title` ≤ 120 chars, `descriptionMarkdown` ≤ 64 KiB, `color` one of `CalendarEntryColor`'s six slot names; `startsAt`/`endsAt` accept a `Z` suffix, an explicit offset, or a zone-less value (interpreted as server-local) |
+| **Request** | `{ title, descriptionMarkdown?, startsAt, endsAt, isAllDay, isHighlighted, color, imageAssetId? }` — `title` ≤ 120 chars, `descriptionMarkdown` ≤ 64 KiB, `color` one of `CalendarEntryColor`'s six slot names; `startsAt`/`endsAt` accept a `Z` suffix, an explicit offset, or a zone-less value (interpreted as UTC) |
 | **Response** | `201 CalendarEntryResponse` |
 | **Errors** | `400` validation (`endsAt <= startsAt`, bad `color`, unknown `imageAssetId`, oversized fields), `403`, `404` |
 
@@ -766,7 +775,7 @@ Adds a planned run.
 | | |
 |---|---|
 | **Auth** | Required (admin, owner, self, or delegated moderator) |
-| **Request** | `{ eventGameId, startsAt, endsAt }` — `startsAt`/`endsAt` accept a `Z` suffix, an explicit offset, or a zone-less value (interpreted as server-local) |
+| **Request** | `{ eventGameId, startsAt, endsAt }` — `startsAt`/`endsAt` accept a `Z` suffix, an explicit offset, or a zone-less value (interpreted as UTC) |
 | **Response** | `201 PlannedRunResponse` |
 | **Errors** | `400` (`endsAt <= startsAt`), `403`, `404` (event/game not found, or target not a competitor) |
 
@@ -1372,7 +1381,7 @@ Edits the wall-clock completion time for an existing completion. This is for cor
 | | |
 |---|---|
 | **Auth** | Required (owner/admin only) |
-| **Request** | `{ completedAt: DateTimeOffset, reason: string (required, max 2000) }` — accepts a `Z` suffix, an explicit offset, or a zone-less value (interpreted as server-local); an offset form is converted to the exact UTC instant, not relabeled |
+| **Request** | `{ completedAt: DateTimeOffset, reason: string (required, max 2000) }` — accepts a `Z` suffix, an explicit offset, or a zone-less value (interpreted as UTC); an offset form is converted to the exact UTC instant, not relabeled |
 | **Response** | `200 { objectiveId, userId, completedAt }` |
 | **Errors** | `400` validation, `403`, `404` |
 
@@ -1661,7 +1670,7 @@ The response records for every `/connector/*` route are declared in `src/Soulsjw
   "createdAt": "datetime",
   "updatedAt": "datetime",
   "competitors": [
-    { "userId": "guid", "displayName": "string", "joinedAt": "datetime", "isStreamer": false, "isLive": false, "moderators": [] }
+    { "userId": "guid", "displayName": "string", "joinedAt": "datetime", "isStreamer": false, "isLive": false, "moderators": [], "twitchLogin": "string", "profileImageUrl": "string?" }
   ],
   "games": [
     {
@@ -1681,6 +1690,11 @@ The response records for every `/connector/*` route are declared in `src/Soulsjw
   ]
 }
 ```
+
+`competitors[].twitchLogin` and `competitors[].profileImageUrl` (null when the user
+has none) come from the competitor's user, so a surface can render a roster with
+avatars and Twitch links — the pre-start scoreboard overview does — without
+calling `/scoreboard`.
 
 ### ScoreEntry
 ```json

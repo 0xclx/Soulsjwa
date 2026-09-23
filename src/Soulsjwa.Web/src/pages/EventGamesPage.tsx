@@ -21,7 +21,7 @@ import type { Objective } from '../types'
 
 export const EventGamesPage = () => {
   const { eventId, event, currentUser, canManage, isAdmin } = useEventRoute()
-  const { data: scoreboard } = useScoreboard(eventId, event.isStarted)
+  const { data: scoreboard } = useScoreboard(eventId, { live: event.isStarted })
   const { data: games } = useGames()
   const editObjective = useEditObjective(eventId)
   const editCompletionTime = useEditCompletionTime(eventId)

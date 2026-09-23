@@ -73,7 +73,7 @@ export function OverlayPreview({ eventId, eventName, games, settings }: OverlayP
     return preset ? { width: preset.width, height: preset.height } : custom
   }, [sizeId, custom])
 
-  const { data: liveScoreboard } = useScoreboard(eventId, LIVE_PREVIEW)
+  const { data: liveScoreboard } = useScoreboard(eventId, { live: LIVE_PREVIEW })
 
   useEffect(() => {
     if (!useSample) return

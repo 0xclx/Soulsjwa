@@ -333,6 +333,10 @@ export interface EventCompetitor {
   isStreamer: boolean
   isLive: boolean
   moderators: EventModerator[]
+  /** For the pre-start roster's Twitch link, which needs no scoreboard. */
+  twitchLogin: string
+  /** For the pre-start roster's avatar; null when the user has none. */
+  profileImageUrl: string | null
 }
 
 export interface EventGame {
@@ -459,6 +463,12 @@ export interface GameBreakdown {
    * total stays right when the visible game set is filtered.
    */
   trial: TrialProgress | null
+  /**
+   * The competitor's official rank among all competitors for this game alone,
+   * by the event's tie-break mode. Computed by the server; never re-derived
+   * here. Trial figures never move it.
+   */
+  rank: number
 }
 
 export interface TrialProgress {

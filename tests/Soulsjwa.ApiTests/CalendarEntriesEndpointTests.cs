@@ -43,11 +43,12 @@ public class CalendarEntriesEndpointTests : ApiTestBase
     [InlineData("2026-10-01T18:00:00Z")]
     [InlineData("2026-10-01T20:00:00+02:00")]
     [InlineData("2026-10-01T18:00:00")]
-    public async Task Create_AcceptsZuluOffsetAndZonelessTimestamps(string startsAt)
+    public async Task Create_AcceptsZuluOffsetAndZonelessTimestamps_AsTheSameUtcInstant(string startsAt)
     {
         // DateTimeOffset request DTOs must accept all three forms instead of
         // 500ing on the zone-less one (Npgsql throws writing an
-        // Unspecified-Kind DateTime to a timestamptz column).
+        // Unspecified-Kind DateTime to a timestamptz column), and a zone-less
+        // one is UTC, never the server's local time.
         var (owner, ownerKey) = await TestAuth.CreateUserWithApiKeyAsync(Factory.Services, "owner");
         var ev = await SeedEventAsync(owner.Id);
         var client = TestAuth.CreateAuthenticatedClient(Factory, ownerKey);
@@ -63,6 +64,8 @@ public class CalendarEntriesEndpointTests : ApiTestBase
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await response.Content.ReadFromJsonAsync<EntryDto>();
+        body!.StartsAt.ToUniversalTime().Should().Be(new DateTime(2026, 10, 1, 18, 0, 0, DateTimeKind.Utc));
     }
 
     [Fact]

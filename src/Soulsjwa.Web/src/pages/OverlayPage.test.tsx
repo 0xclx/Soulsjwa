@@ -54,6 +54,7 @@ const scoreboard: ScoreboardResponse = {
           isTrialActive: false,
           hasTrialRun: false,
           trial: null,
+          rank: 1,
           objectives: [],
         },
         {
@@ -69,6 +70,7 @@ const scoreboard: ScoreboardResponse = {
           isTrialActive: false,
           hasTrialRun: false,
           trial: null,
+          rank: 1,
           objectives: [
             {
               objectiveId: 'objective-1',

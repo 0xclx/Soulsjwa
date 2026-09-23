@@ -74,7 +74,7 @@ graph TD
 | ------------------------- | ------------------------------------------------------------------- |
 | **Hero shell**            | Landing page with responsive feature cards and Twitch login tooltip |
 | **Authenticated actions** | Shows links to My Events and Events                                 |
-| **Featured event (unauthenticated)** | Below the hero, `useFeaturedEvent()` renders the admin-designated featured event for anonymous visitors: name, description, live/started status, and active games (reusing `PageHeader`), plus its scoreboard via `useScoreboard` and the existing `ScoreboardCard`/`ScoreboardTable` components. Renders nothing when no event is featured. |
+| **Featured event (unauthenticated)** | Below the hero, `useFeaturedEvent()` renders the admin-designated featured event for anonymous visitors: name, description, live/started status, and active games (reusing `PageHeader`), plus its scoreboard via the shared `EventScoreboardView` (see EventScoreboardPage below). Renders nothing when no event is featured. |
 
 ### EventsPage (`/events`)
 
@@ -119,7 +119,7 @@ graph TD
 | **Event info**                 | Page header with title, description, creation date, status, tie-break mode, owner/admin actions, and stat cards  |
 | **Focused subpages**           | Shared event layout and MUI tabs route to overview, competitors, games/objectives, scoreboard, activity, and broadcast pages |
 | **Owner lifecycle controls**   | Owner/admin edit (including the optional URL alias), plus archive/unarchive and `Start Event` / `Stop Event` actions |
-| **Overview**                   | Ranked scoreboard preview plus OBS overlay token controls for event owners and competitors                       |
+| **Overview**                   | The full `EventScoreboardView` (every competitor, all three states) plus a "Full scoreboard" link to the Scoreboard tab; makes no `/scores` request |
 | **Overlay tokens**             | Mint/edit/revoke token-gated OBS overlays; the look (view, pinned player, timing, title, theme, toggles) is designed against a live preview and saved on the token |
 | **Competitors**                | Responsive roster cards, self-join action, owner/admin add/remove, streamer flag, and delegated moderator management |
 | **Games & Objectives**         | Game definition cards listing objectives, scores, availability, custom/predefined games, and owner-only controls  |
@@ -139,15 +139,17 @@ graph TD
 | Feature                | Details                                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | **Public access**      | No authentication required                                                                                         |
-| **Full scoreboard**   | Mobile cards and desktop table: position, player, score, completed/failed counts, terminal status, and activity    |
-| **Live indicator**     | Red/green dot per player showing live/offline status                                                               |
-| **Trial progress**     | A competitor with a started trial shows an outlined "Trial" chip — naming the game when it is not the active one — plus their trial score, completions and failures in amber beside the official figures. The chip follows the reported run rather than `isTrialActive`, so it also covers a paused one. Inside the breakdown a trialing game reports that attempt with the ordinary completion marks, and is appended to the breakdown so a trial on a non-active game is reachable at all. Official figures, ranking and sort order are never affected |
-| **Twitch link**        | Purple Twitch icon per player linking to `twitch.tv/{login}`                                                       |
-| **Expandable rows**    | Click player row/card to expand per-game breakdown with individual objective completion status                     |
-| **Per-game breakdown** | Game name, score, resolved counts, objective completion/failure status, and timestamps                            |
-| **Competitor info**    | Expanded games show death clips/links/notes; authorized viewers can add/remove them inline                         |
+| **Three states**       | Not started → **pre-start overview**: games in event order (objective count, points available, "Custom" chip) and the competitor roster (avatar, live dot, Twitch link, sorted by name), built from `EventResponse` with no `/scoreboard` request. Started with an enabled game → a **Current game / Whole event** switch (`ToggleButtonGroup`, `?view=event` for whole event, current game by default). Started with no enabled game → whole event only, no switch |
+| **Current game view**  | "Now playing: <game>", its objective count and "<n> of <m> done". Rows ordered by the server's per-game rank: rank, live dot, avatar, name, Twitch link, a `completed/total` progress bar ("7 of 12 objectives"), failed count when > 0, game score, event total with event rank (`910 · #2`). "Done" once every objective of the game is completed or failed |
+| **Whole event view**   | Per-game matrix: a row per competitor in event-rank order, a column per game in event order (the enabled one marked "Now playing"), then event total and rank. Each cell shows the game score, `completed/total` and the per-game `#rank`, or `—` while nobody has a result in that game |
+| **Objective dialog**   | A standings row or matrix cell opens "<player> · <game>": objectives grouped by category with completed/failed/pending marks, points and timestamps, plus the death clip/link/note editor where the viewer may edit. Closes on Esc, the close button or a backdrop click and returns focus |
+| **Search**             | Case-insensitive filter on display name or Twitch login above both views; hides rows without renumbering (ranks are always the server's), announces the match count in a polite live region, and offers "Clear search" when nothing matches. Kept across view switches |
+| **Live indicator**     | Red/green dot per player, announced as "Live"/"Offline"                                                            |
+| **Trial progress**     | A competitor with a started trial (paused included) gets an outlined "Trial" chip, naming the game when it is not the current one. The current game's trial score, completions and failures show in amber beside the official figures; a trial on another game shows only the chip. Whole-event cells show the game's amber trial score. In the dialog a trialing game shows that attempt's marks when `showsTrial` says so. Official figures and every rank are never affected |
+| **Mobile (< md)**      | Both views become cards (standings: rank, name, progress, game score, event total; matrix: one tappable line per game); switch and search stack full-width |
+| **Refresh**            | The event and the scoreboard are re-read every 30 s (`SCOREBOARD_REFRESH_INTERVAL_MS`); starting the event or changing the enabled game refetches the scoreboard at once |
 
-Rendering itself (loading/empty/error states, cards vs. table) lives in the shared `EventScoreboardView` component, so `EventScoreboardPage`, the home page's featured scoreboard, and `PublicScoreboardPage` below can never drift apart.
+Rendering itself (pre-start overview, loading/empty/error states, both views, cards vs. tables) lives in the shared `EventScoreboardView` component, so `EventScoreboardPage`, the Overview tab, the home page's featured scoreboard, and `PublicScoreboardPage` below can never drift apart.
 
 ### PublicScoreboardPage (`/scoreboard/:eventIdentifier`)
 
@@ -157,7 +159,7 @@ Rendering itself (loading/empty/error states, cards vs. table) lives in the shar
 | **Purpose**            | A shareable, chrome-free deep link to one event's scoreboard — useful when several events run in parallel and each needs its own link |
 | **Resolution**         | `:eventIdentifier` resolves by event id or `UrlAlias`, same as every other event route (`useEvent`)                |
 | **Chrome**             | Rendered outside `AppShell` (like `OverlayPage`) — no nav, no tabs, no footer                                      |
-| **Content**            | Event name heading + `EventScoreboardView`, restricted to the event's one active game (via `active-game`)          |
+| **Content**            | Event name heading + `EventScoreboardView` (same three states and `?view=` param as the Scoreboard tab)           |
 
 ### ProfilePage (`/profile`) 🔒
 
@@ -248,8 +250,9 @@ graph TD
     GAMES --> IMPORT["ImportPredefinedDialog"]
     FORM --> RULE["Lazy RuleBuilder boundary → Blockly"]
     DETAIL --> ACTIVITY["EventActivityPage → EventActivitySection → AuditLogTable"]
-    SCOREBOARD --> LB["EventScoreboardView → cards/table → CompetitorInfosEditor"]
+    SCOREBOARD --> LB["EventScoreboardView → PreStartOverview / ActiveGameStandings / EventGameMatrix → CompetitorGameDialog → CompetitorInfosEditor"]
     HOME --> LB
+    OVERVIEW --> LB
     PUBLIC_SCOREBOARD --> LB
     PROFILE --> AKM["ApiKeyManager"]
     ADMIN --> ALLOW["AdminOverviewPage → AllowlistTab"]
@@ -299,9 +302,14 @@ graph TD
 | `EditOverlayTokenDialog` | `features/events/components/` | Re-design and save an existing token's look                                                    |
 | `RuleBuilderWrapper`  | `features/events/components/blockly/` | Lazy loading, loading state, and widget error boundary for Blockly                           |
 | `RuleBuilder`         | `features/events/components/blockly/` | Labelled Blockly visual editor → JsonLogic output                                             |
-| `ScoreboardTable` / `ScoreboardRow` | `features/events/components/scoreboard/` | Desktop scoreboard and expandable game/objective rows                         |
-| `ScoreboardCard`     | `features/events/components/scoreboard/` | Mobile scoreboard card with expandable breakdown                                             |
-| `ScoreboardGameBreakdown` | `features/events/components/scoreboard/` | Per-game objectives plus competitor info inside expanded scoreboard rows; each game folds independently, open by default only while active (`isEnabled`) |
+| `EventScoreboardView` | `features/events/components/scoreboard/` | Shared scoreboard for Home, Overview, Scoreboard tab and public link: pre-start overview vs. started, switch + search, picks the view, owns the objective dialog |
+| `PreStartOverview`    | `features/events/components/scoreboard/` | Games (objective count, points, Custom chip) and competitor roster for an unstarted event    |
+| `ScoreboardViewSwitch` / `CompetitorSearchField` | `features/events/components/scoreboard/` | Current game / Whole event toggle (only while a game is enabled); labelled search with a polite match-count live region |
+| `ActiveGameHeader` / `ActiveGameStandings` | `features/events/components/scoreboard/` | "Now playing" header; current game standings by per-game rank (table md+, cards below) |
+| `EventGameMatrix`     | `features/events/components/scoreboard/` | Whole event per-game matrix (table md+, cards with a line per game below)                    |
+| `CompetitorGameDialog` | `features/events/components/scoreboard/` | One competitor × game: objectives by category and the competitor-infos editor                |
+| `ScoreboardGameBreakdown` | `features/events/components/scoreboard/` | `ScoreboardObjectiveRow` and `BreakdownColGroup`, reused by `CompetitorGameDialog` (the file's expandable `ScoreboardGameBreakdown` component has no remaining caller) |
+| `LiveDot` / `TwitchLink` | `features/events/components/scoreboard/` | Live/offline dot with a text alternative; Twitch channel icon link                         |
 | `LiveStatusLegend` / `TwitchIcon` | `features/events/components/scoreboard/` | Live/offline legend and Twitch link glyph                                        |
 | `AuditLogTable`       | `features/audits/components/` | Shared cursor-paginated ("Load more") audit table with filters and expandable before/after JSON details |
 | `AllowlistTab`        | `features/admin/components/`  | Admin allowlist management                                                                           |
@@ -334,9 +342,11 @@ graph TD
 | `api/eventsApi.ts` | Event CRUD/listing, lifecycle, scores/scoreboards, audits, game assignment, predefined objectives, objective CRUD/completion, competitor/moderator management, and competitor info metadata |
 | `api/overlayTokensApi.ts` | Overlay token CRUD (create takes the look; `updateSettings` saves it) plus the token-gated overlay poll (`{ scoreboard, settings }`) |
 | `hooks/useEvents.ts` | Query: paginated event list with search/status/archive params |
-| `hooks/useEvent.ts` | Query: single event detail; live events poll periodically |
-| `hooks/useEventScores.ts` | Query: compact score summary for overview preview; live events poll periodically |
-| `hooks/useScoreboard.ts` | Query: full scoreboard response for public scoreboard/detail completion state; live events poll periodically |
+| `hooks/useEvent.ts` | Query: single event detail; started events poll at `SCOREBOARD_REFRESH_INTERVAL_MS` |
+| `hooks/useLiveEvent.ts` | Query: the event as scoreboard surfaces see it, re-read every 30 s whether or not it has started; invalidates the scoreboard when `isStarted` or the enabled game changes |
+| `hooks/useEventScores.ts` | Query: compact score summary (Broadcast tab's competitor list); live events poll periodically |
+| `hooks/useScoreboard.ts` | Query: full scoreboard response; `{ live, enabled }` — polls at `SCOREBOARD_REFRESH_INTERVAL_MS` when live, and scoreboard surfaces enable it only once the event has started |
+| `hooks/useScoreboardView.ts` | Reads/writes `?view=` (history replace, other params kept; the default view is no param) |
 | `hooks/useOverlayScoreboard.ts` | Query: token-gated overlay poll (scoreboard + saved look), enabled only with event id + token; refetched at the URL's interval until a saved look supplies its own |
 | `hooks/useGames.ts` | Query: known game catalog |
 | `hooks/useGameDataDefinitions.ts` | Query: connector data definitions for a known game, used by Blockly rule building |
@@ -362,7 +372,7 @@ graph TD
 | `hooks/useResetTrialRun.ts` | Mutation: reset a trial run to `NotStarted`, deleting its own recorded completions/failures |
 | `api/trialRunCache.ts` | `invalidateTrialProgress` (trial list + its objectives + the scoreboard payload) for a tick inside a run, and `invalidateTrialState` — the same plus the My Events summaries that carry `isTrialActive` — for the five mutations that create, clear or change a run's state. A tick deliberately leaves the My Events keys alone: nothing it writes can show up there |
 | `scoreboard/trialPresentation.ts` | Shared trial labels, tooltip, the amber accent hex the inline-styled overlay needs, the "a trial is recording" copy in both its lengths, and `trialBadgeLabel` (names the game when the trial is not on the displayed one) |
-| `scoreboard/scoreboardMetrics.ts` | `activeGame`, `gameLastCompletedAt`, `trialGames`/`trialTotals` (trial figures summed across the games the caller actually displays, so a filtered view never reports a total the viewer cannot see), `recordingGames`, `objectiveState(objective, showTrial)` — the one place that decides whether a row draws the trial's attempt or the official record — `showsTrial(game, scoringGameIds)`, the rule both the in-app scoreboard and the overlay call to answer *whether* to show the trial for a given game (a scored game only while its run records; a game in view solely for its trial always, since nothing official about it is being reported), and `entryView`, the row/card-shared derivation of active game, scoring scope, trialed games and breakdown |
+| `scoreboard/scoreboardMetrics.ts` | `activeGame`, `gameLastCompletedAt`, `trialGames`/`trialTotals` (trial figures summed across the games the caller actually displays, so a filtered view never reports a total the viewer cannot see), `recordingGames`, `objectiveState(objective, showTrial)` — the one place that decides whether a row draws the trial's attempt or the official record — `showsTrial(game, scoringGameIds)`, the rule both the in-app scoreboard and the overlay call to answer *whether* to show the trial for a given game (a scored game only while its run records; a game in view solely for its trial always, since nothing official about it is being reported), `entryView` (the old row/card derivation; no remaining caller outside its tests), and the derivations shared by the scoreboard tables and cards: `activeGameRows` (entries paired with a game's breakdown, in the server's per-game rank order), `gameIsDone`, `gameHasActivity`, `matchesCompetitorSearch`, `groupByCategory`, `progressLabel`/`progressPercent` |
 | `overlay/overlayScope.ts` | `ScopedEntry` carries `scoringGameIds`/`scoringTotalObjectives`/`scoringMaxScore` (the points on offer, shown as `score / max`): `games` is deliberately wider than the set the official figures were summed from (a trialed game stays visible for its amber figures), so no consumer may derive an official denominator from `games` — doing so collapsed the overlay's official percentage whenever a trial was in view |
 | `hooks/useAddGame.ts` | Mutation: assign a predefined game to an event |
 | `hooks/useAddCustomGame.ts` | Mutation: add a custom per-event game |
@@ -410,7 +420,7 @@ graph TD
 | `overlay/components/ObjectivesView.tsx` | One page of the objectives checklist; a fresh completion fades its row in, pops the tick, and sweeps the strikethrough across the name |
 | `components/EventDetailHeader.tsx` | Event hero: back link, title/status metadata (including a Featured chip), owner/admin actions, an admin-only Feature/Unfeature toggle, an admin-only Duplicate action (available on archived events too, navigates to the copy), and stat cards |
 | `components/EventSectionTabs.tsx` | Router-driven tab bar for overview/competitors/games/activity sections |
-| `components/EventOverviewSection.tsx` | Overview tab: scoreboard preview + overlay tokens |
+| `components/EventOverviewSection.tsx` | Overview tab: `EventScoreboardView` + "Full scoreboard" link |
 | `components/OverlayTokensSection.tsx` | Mint/edit/revoke OBS overlay tokens; rows name their saved look and open `EditOverlayTokenDialog` |
 | `components/CreateOverlayTokenDialog.tsx` | Design first (name + `OverlayDesigner`), then mint with the look and reveal the token-only URL once |
 | `components/EditOverlayTokenDialog.tsx` | Re-design an existing token's look and save it; explains URL-driven legacy tokens |
@@ -431,7 +441,6 @@ graph TD
 | `components/EditCompletionTimeDialog.tsx` | Admin/owner dialog to correct an objective completion timestamp |
 | `components/ImportPredefinedDialog.tsx` | Owner dialog to filter/select/import predefined objectives |
 | `components/EventActivitySection.tsx` | Activity tab: cursor-paginated, filterable event audit log (members-only) |
-| `components/EventScoreboardPreview.tsx` | Compact overview scoreboard linking to the full scoreboard page |
 | `components/EventListCard.tsx` | Event summary card in the Events list (status chips including Featured, counts, admin unarchive, admin duplicate — available on archived events too, navigates to the copy) |
 | `components/EventFilters.tsx` | Search + status filter bar for the Events list |
 | `components/CreateEventDialog.tsx` | Admin-only focused dialog for creating an event |
@@ -443,10 +452,14 @@ graph TD
 | `components/blockly/toolbox.ts` | Dynamic toolbox from predefined objectives and game data definitions |
 | `scoreboard/formatIngameTime.ts` | Pure, unit-tested `H:MM:SS` / `M:SS` in-game-time formatter |
 | `components/scoreboard/TwitchIcon.tsx` | Inline Twitch glyph for player links |
-| `components/scoreboard/ScoreboardTable.tsx` | Dense desktop scoreboard table (md+ only) |
-| `components/scoreboard/ScoreboardRow.tsx` | Expandable desktop scoreboard row with per-game breakdown |
-| `components/scoreboard/ScoreboardCard.tsx` | Mobile scoreboard entry card with expandable breakdown |
-| `components/scoreboard/ScoreboardGameBreakdown.tsx` | Per-game objective rows + competitor-info editor inside an expanded entry; independently foldable per game, defaulting open only while the game is active |
+| `scoreboard/scoreboardView.ts` | `SCOREBOARD_VIEWS` tuple, labels, `view` param name and `parseScoreboardView` |
+| `scoreboard/scoreboardPolling.ts` | `SCOREBOARD_REFRESH_INTERVAL_MS` (30 s), shared by every scoreboard poll |
+| `components/scoreboard/EventScoreboardView.tsx` | Three-state scoreboard shared by every surface |
+| `components/scoreboard/PreStartOverview.tsx` | Unstarted event: games and roster |
+| `components/scoreboard/ActiveGameStandings.tsx` | Current game standings (table md+, cards below) |
+| `components/scoreboard/EventGameMatrix.tsx` | Whole event per-game matrix (table md+, cards below) |
+| `components/scoreboard/CompetitorGameDialog.tsx` | Objectives dialog for one competitor × game |
+| `components/scoreboard/ScoreboardGameBreakdown.tsx` | `ScoreboardObjectiveRow` + `BreakdownColGroup` used by the objectives dialog; the expandable per-game breakdown component itself has no remaining caller |
 | `components/scoreboard/LiveStatusLegend.tsx` | Live/offline status-dot legend |
 
 > **Event detail architecture:** `EventLayout` owns event context, the event

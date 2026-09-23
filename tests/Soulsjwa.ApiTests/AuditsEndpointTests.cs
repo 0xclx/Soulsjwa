@@ -38,6 +38,29 @@ public class AuditsEndpointTests : ApiTestBase
         return actor.Id;
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("Z")]
+    public async Task ListAdmin_ReadsTheFromToWindowAsUtc_WithOrWithoutAZone(string suffix)
+    {
+        // A two-minute window around the row: read as UTC it matches; read as
+        // the server's local time (a non-UTC zone in this assembly) it lands
+        // hours away, in either direction.
+        var actorId = await SeedAuditRowsAsync(1);
+        var (_, key) = await TestAuth.CreateUserWithApiKeyAsync(Factory.Services, "admin");
+        var client = TestAuth.CreateAuthenticatedClient(Factory, key);
+        var now = DateTime.UtcNow;
+        var from = Uri.EscapeDataString(now.AddMinutes(-1).ToString("yyyy-MM-ddTHH:mm:ss") + suffix);
+        var to = Uri.EscapeDataString(now.AddMinutes(1).ToString("yyyy-MM-ddTHH:mm:ss") + suffix);
+
+        var response = await client.GetAsync(
+            $"/api/v1/admin/audits?pageSize=10&actorUserId={actorId}&from={from}&to={to}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("items").GetArrayLength().Should().Be(1);
+    }
+
     [Fact]
     public async Task ListAdmin_CursorMode_OmitsTotalCountByDefault()
     {

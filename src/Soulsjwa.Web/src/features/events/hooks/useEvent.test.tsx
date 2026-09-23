@@ -1,9 +1,10 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { renderHook, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { useEvent } from './useEvent'
 import { eventsApi, EVENTS_QUERY_KEYS } from '../api/eventsApi'
+import { SCOREBOARD_REFRESH_INTERVAL_MS } from '../scoreboard/scoreboardPolling'
 import type { EventResponse } from '../../../types'
 
 vi.mock('../api/eventsApi', async (importOriginal) => {
@@ -104,5 +105,42 @@ describe('useEvent', () => {
     // Resolves from cache — no network call needed.
     expect(byId.current.data).toEqual(makeEvent())
     expect(eventsApi.get).not.toHaveBeenCalled()
+  })
+
+  describe('polling', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    const advance = async (ms: number) => {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms)
+      })
+    }
+
+    it('polls a started event at the scoreboard interval, not before', async () => {
+      vi.mocked(eventsApi.get).mockResolvedValue(makeEvent({ isStarted: true }))
+      renderHook(() => useEvent(EVENT_ID), { wrapper })
+      await advance(0)
+      expect(eventsApi.get).toHaveBeenCalledTimes(1)
+
+      await advance(SCOREBOARD_REFRESH_INTERVAL_MS - 1)
+      expect(eventsApi.get).toHaveBeenCalledTimes(1)
+
+      await advance(1)
+      expect(eventsApi.get).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not poll an unstarted event', async () => {
+      vi.mocked(eventsApi.get).mockResolvedValue(makeEvent({ isStarted: false }))
+      renderHook(() => useEvent(EVENT_ID), { wrapper })
+      await advance(SCOREBOARD_REFRESH_INTERVAL_MS * 2)
+
+      expect(eventsApi.get).toHaveBeenCalledTimes(1)
+    })
   })
 })

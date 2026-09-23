@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Soulsjwa.Api.Features.Events.Entities;
 using Soulsjwa.Api.Infrastructure.Data;
@@ -115,11 +116,11 @@ public class CompletedObjectivesEndpointTests : ApiTestBase
     }
 
     [Fact]
-    public async Task EditCompletionTime_AcceptsZuluOffsetAndZonelessTimestamps()
+    public async Task EditCompletionTime_AcceptsZuluOffsetAndZonelessTimestamps_AsTheSameUtcInstant()
     {
-        // The zone-less form must no longer 500. What instant each form
-        // resolves to is ObjectiveWriteTests' subject; this proves only that
-        // the JSON binder accepts all three, which only happens over the wire.
+        // All three forms bind over the wire, and a zone-less timestamp is
+        // UTC — never the server's local time (the test assembly runs in a
+        // non-UTC zone, so a local reading would land hours off).
         foreach (var suffix in new[] { "Z", "+02:00", "" })
         {
             var (owner, ownerKey) = await TestAuth.CreateUserWithApiKeyAsync(Factory.Services, "owner");
@@ -141,8 +142,18 @@ public class CompletedObjectivesEndpointTests : ApiTestBase
                 new { completedAt, reason = "backfilled from stream VOD" });
 
             response.StatusCode.Should().Be(HttpStatusCode.OK, $"format '{completedAt}' should be accepted");
+            using var scope = Factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var stored = await db.CompletedObjectives
+                .Where(co => co.ObjectiveId == objectiveId && co.UserId == competitor.Id)
+                .Select(co => co.CompletedAt)
+                .SingleAsync();
+            stored.Should().Be(TruncateToSeconds(target), $"'{completedAt}' names that UTC instant");
         }
     }
+
+    private static DateTime TruncateToSeconds(DateTime value) =>
+        new(value.Ticks - value.Ticks % TimeSpan.TicksPerSecond, DateTimeKind.Utc);
 
     private async Task<(Event Event, Guid EventGameId, Guid ObjectiveId)> SeedEventWithObjectiveAsync(
         Guid ownerId, string ownerKey, int score = 10)

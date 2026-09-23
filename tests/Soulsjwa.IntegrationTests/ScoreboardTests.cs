@@ -182,6 +182,112 @@ public class ScoreboardTests : IntegrationTestBase
         scoreboard.Entries.Select(e => e.Rank).Should().AllBeEquivalentTo(1);
     }
 
+    [Fact]
+    public async Task PerGameRank_FollowsThatGamesScore_NotTheEventTotal()
+    {
+        var db = CreateDbContext();
+        var f = await Fixtures.AddEventAsync(db, score: 100, withCompetitor: false);
+        var (gameB, objectiveB) = await AddSecondGameAsync(db, f.Event, score: 20);
+        var bOnly = await Fixtures.AddObjectiveAsync(db, gameB, "b-only", score: 10);
+        var leader = await AddCompetitorAsync(db, f.Event, "leader");
+        var specialist = await AddCompetitorAsync(db, f.Event, "specialist");
+
+        // leader: 100 in A + 10 in B = 110. specialist: 0 in A + 20 in B = 20.
+        db.CompletedObjectives.AddRange(
+            new CompletedObjective { ObjectiveId = f.Objective.Id, UserId = leader.Id },
+            new CompletedObjective { ObjectiveId = bOnly.Id, UserId = leader.Id },
+            new CompletedObjective { ObjectiveId = objectiveB.Id, UserId = specialist.Id });
+        await db.SaveChangesAsync();
+
+        var scoreboard = await ScoreboardEndpoint.BuildAsync(f.Event.Id, CreateDbContext(), default);
+
+        var leaderEntry = scoreboard!.Entries.Single(e => e.UserId == leader.Id);
+        var specialistEntry = scoreboard.Entries.Single(e => e.UserId == specialist.Id);
+        leaderEntry.Rank.Should().Be(1, "leader has the higher event total");
+        GameRank(leaderEntry, f.Game.Id).Should().Be(1);
+        GameRank(specialistEntry, f.Game.Id).Should().Be(2);
+        GameRank(specialistEntry, gameB.Id).Should().Be(1, "specialist has the higher score in game B");
+        GameRank(leaderEntry, gameB.Id).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task PerGameRank_SharedPlace_GivesTiedGameScoresTheSameRank()
+    {
+        var db = CreateDbContext();
+        var f = await Fixtures.AddEventAsync(db, score: 50, withCompetitor: false);
+        var (gameB, objectiveB) = await AddSecondGameAsync(db, f.Event, score: 10);
+        var small = await Fixtures.AddObjectiveAsync(db, gameB, "small", score: 5);
+        var a = await AddCompetitorAsync(db, f.Event, "a");
+        var b = await AddCompetitorAsync(db, f.Event, "b");
+        var c = await AddCompetitorAsync(db, f.Event, "c");
+        db.Events.Attach(f.Event).Entity.TieBreakMode = TieBreakMode.SharedPlace;
+
+        // Game B: a and b tie on 10, c has 5. Game A splits the event totals
+        // so the tie only exists per game.
+        var when = DateTime.UtcNow.AddHours(-1);
+        db.CompletedObjectives.AddRange(
+            new CompletedObjective { ObjectiveId = f.Objective.Id, UserId = b.Id, CompletedAt = when },
+            new CompletedObjective { ObjectiveId = objectiveB.Id, UserId = a.Id, CompletedAt = when, InGameTimeMs = 1000 },
+            new CompletedObjective { ObjectiveId = objectiveB.Id, UserId = b.Id, CompletedAt = when.AddMinutes(5), InGameTimeMs = 9000 },
+            new CompletedObjective { ObjectiveId = small.Id, UserId = c.Id, CompletedAt = when });
+        await db.SaveChangesAsync();
+
+        var scoreboard = await ScoreboardEndpoint.BuildAsync(f.Event.Id, CreateDbContext(), default);
+
+        GameRank(scoreboard!.Entries.Single(e => e.UserId == a.Id), gameB.Id).Should().Be(1);
+        GameRank(scoreboard.Entries.Single(e => e.UserId == b.Id), gameB.Id).Should().Be(1);
+        GameRank(scoreboard.Entries.Single(e => e.UserId == c.Id), gameB.Id).Should().Be(3);
+    }
+
+    [Fact]
+    public async Task PerGameRank_ByTime_BreaksATieOnThatGamesInGameTime()
+    {
+        var db = CreateDbContext();
+        var f = await Fixtures.AddEventAsync(db, withCompetitor: false);
+        var (gameB, objectiveB) = await AddSecondGameAsync(db, f.Event);
+        var a = await AddCompetitorAsync(db, f.Event, "a");
+        var b = await AddCompetitorAsync(db, f.Event, "b");
+        db.Events.Attach(f.Event).Entity.TieBreakMode = TieBreakMode.ByTime;
+
+        // Equal scores in both games. a is faster over the whole event
+        // (10 000 vs 55 000 ms) but slower in game B (9000 vs 5000 ms), so B's
+        // rank must come from B's time alone.
+        var when = DateTime.UtcNow.AddHours(-1);
+        db.CompletedObjectives.AddRange(
+            new CompletedObjective { ObjectiveId = f.Objective.Id, UserId = a.Id, CompletedAt = when, InGameTimeMs = 1000 },
+            new CompletedObjective { ObjectiveId = f.Objective.Id, UserId = b.Id, CompletedAt = when, InGameTimeMs = 50000 },
+            new CompletedObjective { ObjectiveId = objectiveB.Id, UserId = a.Id, CompletedAt = when, InGameTimeMs = 9000 },
+            new CompletedObjective { ObjectiveId = objectiveB.Id, UserId = b.Id, CompletedAt = when, InGameTimeMs = 5000 });
+        await db.SaveChangesAsync();
+
+        var scoreboard = await ScoreboardEndpoint.BuildAsync(f.Event.Id, CreateDbContext(), default);
+
+        var aEntry = scoreboard!.Entries.Single(e => e.UserId == a.Id);
+        var bEntry = scoreboard.Entries.Single(e => e.UserId == b.Id);
+        aEntry.Rank.Should().Be(1, "a has the lower total in-game time");
+        GameRank(aEntry, f.Game.Id).Should().Be(1);
+        GameRank(bEntry, f.Game.Id).Should().Be(2);
+        GameRank(bEntry, gameB.Id).Should().Be(1, "b has the lower in-game time in game B");
+        GameRank(aEntry, gameB.Id).Should().Be(2);
+    }
+
+    private static int GameRank(ScoreboardEntry entry, Guid eventGameId) =>
+        entry.Games.Single(g => g.EventGameId == eventGameId).Rank;
+
+    /// <summary>
+    /// A second, disabled game with one objective: the DB allows at most one
+    /// enabled game per event, and the fixture's game already is.
+    /// </summary>
+    private static async Task<(EventGame Game, Objective Objective)> AddSecondGameAsync(
+        AppDbContext db, Event ev, int score = 10)
+    {
+        var game = new EventGame { EventId = ev.Id, CustomGameName = "Game B" };
+        db.EventGames.Add(game);
+        await db.SaveChangesAsync();
+        var objective = await Fixtures.AddObjectiveAsync(db, game, "b", score);
+        return (game, objective);
+    }
+
     private static async Task<User> AddCompetitorAsync(AppDbContext db, Event ev, string prefix)
     {
         var user = await Fixtures.AddUserAsync(db, prefix);

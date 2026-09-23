@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { eventsApi, EVENTS_QUERY_KEYS } from '../api/eventsApi'
+import { SCOREBOARD_REFRESH_INTERVAL_MS } from '../scoreboard/scoreboardPolling'
 
 const EVENT_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -30,6 +31,7 @@ export const useEvent = (identifier: string) => {
       return data
     },
     enabled: !!normalizedIdentifier,
-    refetchInterval: (query) => (query.state.data?.isStarted ? 5000 : false),
+    refetchInterval: (query) =>
+      query.state.data?.isStarted ? SCOREBOARD_REFRESH_INTERVAL_MS : false,
   })
 }

@@ -49,6 +49,11 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
+// Every time on the wire is UTC: a zone-less timestamp in a request means
+// UTC, never this machine's local time. Only browsers show local time.
+builder.Services.ConfigureHttpJsonOptions(options =>
+    UtcJsonConverters.AddTo(options.SerializerOptions.Converters));
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
