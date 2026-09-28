@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Text;
 using FluentAssertions;
@@ -189,6 +190,44 @@ public class TwitchAuthServiceTests : IntegrationTestBase
         second.Email.Should().Be("n@x.com");
         second.ProfileImageUrl.Should().Be("http://img");
         db.Users.Count().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task UpsertUserAsync_NewUser_StoresTheTwitchNameAsBothNames()
+    {
+        var db = CreateDbContext();
+        db.AllowlistedTwitchLogins.Add(new Soulsjwa.Api.Features.Auth.Entities.AllowlistedTwitchLogin { TwitchLogin = "fresh" });
+        await db.SaveChangesAsync();
+        var http = new HttpClient(new StubHandler((_, _) => throw new InvalidOperationException()));
+        var svc = new TwitchAuthService(http, Config, db, NullLogger<TwitchAuthService>.Instance);
+
+        var u = await svc.UpsertUserAsync(new TwitchUserInfo("77", "fresh", "Fresh", null, null));
+
+        u.TwitchDisplayName.Should().Be("Fresh");
+        u.DisplayNameOverride.Should().BeNull();
+        u.DisplayName.Should().Be("Fresh");
+    }
+
+    [Fact]
+    public async Task UpsertUserAsync_ExistingUserWithAnOverride_KeepsIt_AndRecordsTheNewTwitchName()
+    {
+        // A manually set name is an intentional choice; signing in again must
+        // not overwrite it with whatever Twitch reports.
+        var db = CreateDbContext();
+        db.AllowlistedTwitchLogins.Add(new Soulsjwa.Api.Features.Auth.Entities.AllowlistedTwitchLogin { TwitchLogin = "renamed" });
+        await db.SaveChangesAsync();
+        var http = new HttpClient(new StubHandler((_, _) => throw new InvalidOperationException()));
+        var svc = new TwitchAuthService(http, Config, db, NullLogger<TwitchAuthService>.Instance);
+        var first = await svc.UpsertUserAsync(new TwitchUserInfo("88", "renamed", "SolaireOfAstora", null, null));
+        first.SetDisplayNameOverride("Solaire");
+        await db.SaveChangesAsync();
+
+        await svc.UpsertUserAsync(new TwitchUserInfo("88", "renamed", "SunBro", null, null));
+
+        var stored = await CreateDbContext().Users.SingleAsync(u => u.TwitchId == "88");
+        stored.TwitchDisplayName.Should().Be("SunBro");
+        stored.DisplayNameOverride.Should().Be("Solaire");
+        stored.DisplayName.Should().Be("Solaire");
     }
 
     [Fact]

@@ -89,6 +89,11 @@ public class ScoreboardTrialIsolationTests : IntegrationTestBase
         var baseline = before!.Entries
             .Select(e => (e.UserId, e.TotalScore, e.Rank))
             .ToList();
+        var gameRankBaseline = before.Entries
+            .Select(e => (e.UserId, e.Games.Single().Rank))
+            .ToList();
+        // With a single game, the per-game standing is the event standing.
+        gameRankBaseline.Should().Equal(baseline.Select(e => (e.UserId, e.Rank)));
 
         // Now pile up practice progress worth far more than anyone's real score.
         var extra = await AddObjectiveAsync(db, game, name: "Extra", score: 9999);
@@ -106,6 +111,7 @@ public class ScoreboardTrialIsolationTests : IntegrationTestBase
         // Same order, same ranks, same scores — whatever the event's tie-break
         // mode, 9999 points of practice moved nothing.
         after!.Entries.Select(e => (e.UserId, e.TotalScore, e.Rank)).Should().Equal(baseline);
+        after.Entries.Select(e => (e.UserId, e.Games.Single().Rank)).Should().Equal(gameRankBaseline);
         after.Entries.Single(e => e.UserId == trialing.Id)
             .Games.Single(g => g.Trial is not null).Trial!.Score.Should().Be(9999);
     }

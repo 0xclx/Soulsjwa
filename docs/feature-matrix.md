@@ -31,6 +31,7 @@
 | **Admin role (`User.Role`)** | ✅ | ✅ | — | Admin nav link, admin-only buttons across UI |
 | **First-admin bootstrap** | ✅ | — | — | `Admin:BootstrapTwitchLogin` config; first matching Twitch login becomes admin |
 | **Twitch login allowlist** | ✅ | ✅ | — | Non-allowlisted sign-ins rejected with friendly callback error |
+| **Custom display name** | ✅ | ✅ | — | `User.DisplayNameOverride` (≤ 50 chars, free text) takes precedence over the Twitch name and survives sign-in (`TwitchDisplayName` is refreshed instead); users set/clear their own on the Profile page, admins anyone's from the Users tab; audited (`user.display_name_changed`), and cached scoreboards/overlay/Twitch extension/calendar entries are evicted on change |
 | **Admin allowlist mgmt UI** | ✅ | ✅ | — | `/admin` page → Allowlist tab |
 | **User role management** | ✅ | ✅ | — | `/admin` page → Users tab; last-admin demotion blocked |
 | **Per-event competitor list** | ✅ | ✅ | — | Owner/admin adds/removes competitors; streamer flag controls delegation |
@@ -73,6 +74,7 @@
 | Media uploads | ✅ | ✅ | — | Admin-only, content-addressed by SHA-256, magic-byte sniffed, metadata stripped, atomic write |
 | Event rules | ✅ | ✅ | — | Per-event Markdown rules page; the featured event's rules are linked from the nav |
 | Feature flags | ✅ | ✅ | — | Runtime flags (`/admin/feature-flags`), e.g. My Events quick complete |
+| Sample events | ✅ | ✅ | — | Admin `/admin/sample-data` creates the same five `Sample: …` events every time (not started; game in progress; between games; seven games; empty setup) with custom games and objectives but no competitors, after a confirmation, in any environment; archive to hide. `SampleEventSeeder` is also callable from IntegrationTests |
 
 ## Event Calendar
 
@@ -134,8 +136,10 @@
 | Terminal objective outcome | ✅ | ✅ | — | Competitor is terminal when every objective is completed or failed |
 | In-game time tiebreaker | ✅ | ✅ | ✅ | `InGameTimeMs` stored per completion; scoreboard uses it to rank ties fairly across play sessions |
 | Tie break mode | ✅ | ✅ | — | `SharedPlace` (default — equal scores share rank regardless of completion time) or `ByTime` (first to score); configurable per event |
-| Scoreboard (scores) | ✅ | ✅ | — | Ranked table on event detail; finished status, tiebreaker by in-game time then completion time |
-| Per-user score breakdown | ✅ | ✅ | — | Full scoreboard page with per-game and per-objective details; expandable rows |
+| Scoreboard (scores) | ✅ | ✅ | — | One shared view on Home, Overview, the Scoreboard tab and the public link, in three states: pre-start overview (games + roster, no `/scoreboard` call), current game standings, and the whole event per-game matrix, switched with `?view=` while a game is enabled; every competitor shown; event and scoreboard re-read every 30 s |
+| Per-game rank | ✅ | ✅ | — | `GameBreakdown.rank`: each competitor's rank within one game, computed server-side with the event's tie-break mode from official figures only; orders the current game standings and labels whole-event cells (`—` until anyone has a result in the game) |
+| Scoreboard competitor search | — | ✅ | — | Case-insensitive on display name or Twitch login; hides rows without renumbering, announces the match count, kept across view switches |
+| Per-user score breakdown | ✅ | ✅ | — | A standings row or whole-event cell opens a dialog for that competitor × game: objectives by category with marks, points and times, plus the competitor-infos editor |
 | Competitor live status | ✅ | ✅ | — | Red/green indicator on scoreboard; toggled by competitor, streamer moderator, or admin |
 | Twitch profile link | — | ✅ | — | Click Twitch icon on scoreboard to visit streamer's channel |
 | Death clip / info attachments | ✅ | ✅ | — | Competitor info editor manages DeathClip, Link, and Other attachments |
@@ -145,7 +149,7 @@
 | Twitch extension admin tab | ✅ | ✅ | — | `/admin/twitch-extension`: server status, extension-wide rules (`TwitchExtensionSettings` singleton: lock channels to the featured event, hide the viewer scope switcher, defaults for unsaved channels; audited, evicts every cached extension response), Twitch console setup steps, and the extension zip download with this deployment's origin written into `extension-config.js` |
 | Score history / timeline | 🟡 | 🟡 | — | CompletedAt + InGameTimeMs stored per objective; last completion shown on scoreboard; full timeline UI not yet built |
 | Trial/training runs | ✅ | ✅ | ✅ | Per (event, game, competitor); owner/admin `AllowTrialRuns` switch; controls on the competitor tile and on My Events' Trial tab (enable, start/stop/reset); playable — including manual ticking — whether or not the game is the event's active one; trial completions never reach official scoring, ranking, or cross-competitor fail-rule cascades; official progress and a trial are mutually exclusive per (game, competitor) — a trial cannot start once official rows exist, and a non-recording slot refuses official writes rather than absorbing them |
-| Trial progress display | ✅ | ✅ | — | Trial score/completions reported per game beside the official figures and rendered in amber on the scoreboard row/card and the OBS overlay, with a "Trial" badge naming the game when it isn't the active one; objective marks use the ordinary icons since a trial's rows are discarded when it ends. Managed on My Events' Trial tab, which is the only place on that page trial progress appears |
+| Trial progress display | ✅ | ✅ | — | Trial score/completions reported per game beside the official figures and rendered in amber — for the current game in the standings, in each whole-event cell, and on the OBS overlay — with a "Trial" badge naming the game when it isn't the current one; objective marks use the ordinary icons since a trial's rows are discarded when it ends. Managed on My Events' Trial tab, which is the only place on that page trial progress appears |
 | Trial run destructive disable | ✅ | ✅ | — | Typed confirmation naming the game before disabling; hard-deletes exactly that competitor's trial rows for that event+game, audit-logged with the row count |
 
 ## Connector

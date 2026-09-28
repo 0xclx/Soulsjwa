@@ -45,7 +45,8 @@ public sealed record GameBreakdown(
     bool IsEnabled = false,
     bool IsTrialActive = false,
     TrialProgress? Trial = null,
-    bool HasTrialRun = false);
+    bool HasTrialRun = false,
+    int Rank = 0);
 
 public sealed record ObjectiveDetail(
     Guid ObjectiveId,
@@ -122,6 +123,18 @@ public class ScoreboardEndpoint : IEndpoint
     private sealed record FailedObjectiveRow(Guid UserId, Guid ObjectiveId, DateTime FailedAt, long? InGameTimeMs);
     private sealed record TrialRunRow(Guid Id, Guid UserId, Guid EventGameId, TrialRunState State);
     private sealed record TrialOutcomeRow(Guid TrialRunId, Guid ObjectiveId, DateTime At);
+
+    /// <summary>
+    /// One competitor's official standing in a single game, projected only so
+    /// <see cref="ScoreboardRanking"/> can rank it. <see cref="GameBreakdown"/>
+    /// itself stays out of <see cref="IScoreboardSortable"/>, keeping trial
+    /// figures structurally unable to reach a rank.
+    /// </summary>
+    private sealed record GameRankKey(
+        Guid UserId,
+        int TotalScore,
+        long? TotalInGameTimeMs,
+        DateTime? LastCompletedAt) : IScoreboardSortable;
 
     /// <summary>
     /// Every trial run touching a set of event games, plus the completions and
@@ -353,6 +366,8 @@ public class ScoreboardEndpoint : IEndpoint
                 evCompetitors, evGames, completionLookup, evCompleted,
                 failureLookup, evFailed, totalObjectiveCount, allTrialData);
 
+            entries = AssignGameRanks(entries, evGames, evCompleted, ev.TieBreakMode);
+
             var sorted = ScoreboardRanking.Sort(entries);
             var ranks = ScoreboardRanking.AssignRanks(sorted, ev.TieBreakMode);
             var ranked = sorted
@@ -511,6 +526,63 @@ public class ScoreboardEndpoint : IEndpoint
             ObjectiveOutcomeCalculator.ForObjective(isCompleted, isFailed).ToString());
     }
 
+    /// <summary>
+    /// Fills each <see cref="GameBreakdown.Rank"/>: the competitor's place
+    /// among everyone in the event for that game alone. Same sort, same
+    /// <paramref name="mode"/> as the event rank, over the game's official
+    /// score, in-game time and last completion only.
+    /// </summary>
+    private static List<ScoreboardEntry> AssignGameRanks(
+        List<ScoreboardEntry> entries,
+        IReadOnlyList<EventGame> eventGames,
+        List<CompletedObjectiveRow> completedObjectives,
+        TieBreakMode mode)
+    {
+        var eventGameIdByObjective = eventGames
+            .SelectMany(eg => eg.Objectives.Select(o => (ObjectiveId: o.Id, EventGameId: eg.Id)))
+            .ToDictionary(x => x.ObjectiveId, x => x.EventGameId);
+        var completionsByCompetitorGame = completedObjectives
+            .ToLookup(co => (co.UserId, EventGameId: eventGameIdByObjective[co.ObjectiveId]));
+
+        var rankByCompetitorGame = new Dictionary<(Guid UserId, Guid EventGameId), int>();
+        foreach (var eventGame in eventGames)
+        {
+            var keys = entries.Select(entry =>
+            {
+                var completions = completionsByCompetitorGame[(entry.UserId, eventGame.Id)].ToList();
+                return new GameRankKey(
+                    entry.UserId,
+                    entry.Games.Single(g => g.EventGameId == eventGame.Id).Score,
+                    OfficialInGameTimeMs(completions),
+                    completions.Count == 0 ? null : completions.Max(co => co.CompletedAt));
+            });
+            var sorted = ScoreboardRanking.Sort(keys);
+            var ranks = ScoreboardRanking.AssignRanks(sorted, mode);
+            for (var i = 0; i < sorted.Count; i++)
+                rankByCompetitorGame[(sorted[i].UserId, eventGame.Id)] = ranks[i];
+        }
+
+        return entries
+            .Select(entry => entry with
+            {
+                Games = entry.Games
+                    .Select(g => g with { Rank = rankByCompetitorGame[(entry.UserId, g.EventGameId)] })
+                    .ToList(),
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// The summed in-game time of <paramref name="completions"/>, reported
+    /// only when every completion has one — otherwise the sum understates the
+    /// player's true time and would unfairly beat a competitor whose
+    /// completions are fully timed.
+    /// </summary>
+    private static long? OfficialInGameTimeMs(IReadOnlyCollection<CompletedObjectiveRow> completions) =>
+        completions.Count > 0 && completions.All(co => co.InGameTimeMs.HasValue)
+            ? completions.Sum(co => co.InGameTimeMs!.Value)
+            : null;
+
     private static List<ScoreboardEntry> BuildEntries(
         IEnumerable<EventCompetitor> competitors,
         IEnumerable<EventGame> eventGames,
@@ -594,14 +666,7 @@ public class ScoreboardEndpoint : IEndpoint
                 ? (DateTime?)null
                 : completionsForUser.Max(co => co.CompletedAt);
 
-            // Only report a total in-game time when every completion has
-            // one — otherwise the sum understates the player's true time
-            // and would unfairly beat a competitor whose completions are
-            // fully timed.
-            long? totalInGameTimeMs = completionsForUser.Count > 0
-                && completionsForUser.All(co => co.InGameTimeMs.HasValue)
-                ? completionsForUser.Sum(co => co.InGameTimeMs!.Value)
-                : null;
+            var totalInGameTimeMs = OfficialInGameTimeMs(completionsForUser);
 
             return new ScoreboardEntry(
                 competitor.UserId,

@@ -15,7 +15,11 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import { CompetitorInfosEditor } from '../CompetitorInfosEditor'
 import { TrialFigure } from './TrialFigure'
-import { gameLastCompletedAt, objectiveState } from '../../scoreboard/scoreboardMetrics'
+import {
+  gameLastCompletedAt,
+  groupByCategory,
+  objectiveState,
+} from '../../scoreboard/scoreboardMetrics'
 import {
   TRIAL_BADGE_TEXT,
   TRIAL_FIGURE_LABELS,
@@ -23,9 +27,6 @@ import {
   TRIAL_TOOLTIP,
 } from '../../scoreboard/trialPresentation'
 import type { GameBreakdown, ObjectiveDetail } from '../../../../types'
-
-/** Fallback group label for objectives that have no category set. */
-const UNCATEGORIZED_LABEL = 'Other'
 
 /**
  * Each breakdown table is a separate `<table>`, so the browser sizes its
@@ -42,23 +43,6 @@ export const BreakdownColGroup = () => (
     <col style={{ width: 200 }} />
   </colgroup>
 )
-
-/**
- * Groups a game's objectives by category, preserving the first-seen order of
- * both the categories and the objectives within each — same grouping as the
- * OBS overlay's "objectives" view, so the in-app breakdown and the overlay
- * never disagree about how objectives are organized.
- */
-function groupByCategory(objectives: ObjectiveDetail[]): Array<[string, ObjectiveDetail[]]> {
-  const byCategory = new Map<string, ObjectiveDetail[]>()
-  for (const objective of objectives) {
-    const category = objective.category?.trim() || UNCATEGORIZED_LABEL
-    const bucket = byCategory.get(category)
-    if (bucket) bucket.push(objective)
-    else byCategory.set(category, [objective])
-  }
-  return Array.from(byCategory)
-}
 
 /** One objective line inside an expanded competitor's per-game breakdown. */
 export const ScoreboardObjectiveRow = memo(function ScoreboardObjectiveRow({

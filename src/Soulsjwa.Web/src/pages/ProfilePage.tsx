@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
@@ -8,6 +9,10 @@ import { useCurrentUser } from '../features/users/hooks/useCurrentUser'
 import { useLogout } from '../features/auth/hooks/useLogout'
 import { ErrorMessage, LoadingState, PageHeader, Surface } from '../components/ui'
 import { ApiKeyManager } from '../features/users/components/ApiKeyManager'
+import { DisplayNameField } from '../features/users/components/DisplayNameField'
+import { useUpdateMyDisplayName } from '../features/users/hooks/useUpdateMyDisplayName'
+import { getErrorDetail } from '../lib/getErrorDetail'
+import type { User } from '../types'
 
 export const ProfilePage = () => {
   const { data: user, isLoading, isError } = useCurrentUser()
@@ -59,6 +64,8 @@ export const ProfilePage = () => {
         </Stack>
       </Surface>
 
+      <DisplayNameSection user={user} />
+
       <Surface>
         <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
           API access
@@ -66,5 +73,44 @@ export const ProfilePage = () => {
         <ApiKeyManager />
       </Surface>
     </Stack>
+  )
+}
+
+const DISPLAY_NAME_SECTION_TEXT = {
+  heading: 'Display name',
+  description:
+    'The name shown for you on scoreboards, overlays and event pages. It is taken from Twitch ' +
+    'until you set your own; your own name stays when you sign in again.',
+  failed: 'Failed to save the display name.',
+} as const
+
+const DisplayNameSection = ({ user }: { user: User }) => {
+  const update = useUpdateMyDisplayName()
+  const headingId = useId()
+
+  return (
+    <Box component="section" aria-labelledby={headingId}>
+      <Surface>
+        <Typography id={headingId} variant="h5" component="h2" sx={{ mb: 1 }}>
+          {DISPLAY_NAME_SECTION_TEXT.heading}
+        </Typography>
+        <Typography color="text.secondary" sx={{ mb: 2 }}>
+          {DISPLAY_NAME_SECTION_TEXT.description}
+        </Typography>
+        <DisplayNameField
+          // Restart from the saved name after every change.
+          key={user.displayName}
+          currentName={user.displayName}
+          twitchDisplayName={user.twitchDisplayName}
+          hasOverride={user.displayNameOverride !== null}
+          pending={update.isPending}
+          error={
+            update.isError ? getErrorDetail(update.error, DISPLAY_NAME_SECTION_TEXT.failed) : null
+          }
+          onSave={(displayName) => update.mutate(displayName)}
+          onReset={() => update.mutate(null)}
+        />
+      </Surface>
+    </Box>
   )
 }

@@ -72,6 +72,7 @@ public static class AuditEventTypes
 
     // Admin / global (no event scope)
     public const string UserRoleChanged = "user.role_changed";
+    public const string UserDisplayNameChanged = "user.display_name_changed";
     public const string AllowlistAdded = "allowlist.added";
     public const string AllowlistRemoved = "allowlist.removed";
     public const string FeatureFlagUpdated = "feature_flag.updated";

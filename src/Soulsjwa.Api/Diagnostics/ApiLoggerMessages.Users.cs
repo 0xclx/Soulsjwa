@@ -15,4 +15,11 @@ public static partial class ApiLoggerMessages
         Level = LogLevel.Information,
         Message = "Revoked API key {ApiKeyId} with prefix {ApiKeyPrefix} for user {UserId}")]
     public static partial void ApiKeyRevoked(this ILogger logger, Guid apiKeyId, string apiKeyPrefix, Guid userId);
+
+    [LoggerMessage(
+        EventId = DiagnosticsConfig.LogEventIds.UserDisplayNameChanged,
+        EventName = DiagnosticsConfig.LogEventNames.UserDisplayNameChanged,
+        Level = LogLevel.Information,
+        Message = "Changed display name of user {TargetUserId} (override set: {HasOverride}) by user {UserId}")]
+    public static partial void UserDisplayNameChanged(this ILogger logger, Guid targetUserId, bool hasOverride, Guid userId);
 }

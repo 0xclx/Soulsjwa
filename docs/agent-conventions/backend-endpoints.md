@@ -18,6 +18,13 @@ Quick checklist for adding or changing an endpoint.
   return early. For enums on the wire, use `Enum.TryParse<T>(s, ignoreCase: false, out _)`.
 - DTOs: define request/response records in the endpoint file. Don't leak EF
   entities through the API surface.
+- Time: the server is UTC-only. Use `DateTime.UtcNow`, never `DateTime.Now`,
+  `ToLocalTime` or `TimeZoneInfo.Local`; store `timestamptz`. Take request
+  times as `DateTimeOffset` and store them with `UtcTime.ToStorage`. The global
+  `UtcJsonConverters` read a zone-less JSON timestamp as UTC. Only the browser
+  shows local time. The backend test assemblies run in a non-UTC zone
+  (`NonUtcLocalTimeZone`), so a local-time leak fails the tests; assert the
+  stored instant, not just the status code.
 - Error responses (BE-028): every non-2xx result is either
   `Results.Problem(detail: "…", statusCode: …)` (RFC 7807
   `application/problem+json`) or an empty body. Never `Results.NotFound(string)` /

@@ -24,6 +24,8 @@ public partial class AdminRouteCoverageTests : ApiTestBase
     [
         ("GET", "/api/v1/admin/users"),
         ("PATCH", "/api/v1/admin/users/{id}/role"),
+        ("PATCH", "/api/v1/admin/users/{id}/display-name"),
+        ("POST", "/api/v1/admin/sample-events"),
         ("GET", "/api/v1/admin/allowlist"),
         ("POST", "/api/v1/admin/allowlist"),
         ("DELETE", "/api/v1/admin/allowlist/{id}"),

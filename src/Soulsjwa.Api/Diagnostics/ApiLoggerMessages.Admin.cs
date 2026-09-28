@@ -22,4 +22,11 @@ public static partial class ApiLoggerMessages
         Level = LogLevel.Information,
         Message = "Removed Twitch login {TwitchLogin} from allowlist by user {UserId}; linked user {LinkedUserId}")]
     public static partial void AllowlistLoginRemoved(this ILogger logger, string twitchLogin, Guid userId, Guid? linkedUserId);
+
+    [LoggerMessage(
+        EventId = DiagnosticsConfig.LogEventIds.AdminSampleEventsCreated,
+        EventName = DiagnosticsConfig.LogEventNames.AdminSampleEventsCreated,
+        Level = LogLevel.Information,
+        Message = "Created {Count} sample events by admin {UserId}")]
+    public static partial void AdminSampleEventsCreated(this ILogger logger, int count, Guid userId);
 }

@@ -7,6 +7,7 @@ import GroupIcon from '@mui/icons-material/Group'
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck'
 import ToggleOnIcon from '@mui/icons-material/ToggleOn'
 import ExtensionIcon from '@mui/icons-material/Extension'
+import ScienceIcon from '@mui/icons-material/Science'
 
 export type AdminSection =
   | 'allowlist'
@@ -17,6 +18,7 @@ export type AdminSection =
   | 'legal'
   | 'theme'
   | 'twitch-extension'
+  | 'sample-data'
 
 interface AdminSectionNavItem {
   section: AdminSection
@@ -33,6 +35,7 @@ export const ADMIN_SECTION_NAV: readonly AdminSectionNavItem[] = [
   { section: 'legal', label: 'Legal', to: '/admin/legal' },
   { section: 'theme', label: 'Theme', to: '/admin/theme' },
   { section: 'twitch-extension', label: 'Twitch extension', to: '/admin/twitch-extension' },
+  { section: 'sample-data', label: 'Sample data', to: '/admin/sample-data' },
 ]
 
 export const getAdminSection = (pathname: string): AdminSection => {
@@ -43,6 +46,7 @@ export const getAdminSection = (pathname: string): AdminSection => {
   if (pathname.endsWith('/legal')) return 'legal'
   if (pathname.endsWith('/theme')) return 'theme'
   if (pathname.endsWith('/twitch-extension')) return 'twitch-extension'
+  if (pathname.endsWith('/sample-data')) return 'sample-data'
   return 'allowlist'
 }
 
@@ -54,5 +58,6 @@ export const getAdminSectionIcon = (section: AdminSection): ReactElement => {
   if (section === 'legal') return <ArticleIcon fontSize="small" />
   if (section === 'theme') return <PaletteIcon fontSize="small" />
   if (section === 'twitch-extension') return <ExtensionIcon fontSize="small" />
+  if (section === 'sample-data') return <ScienceIcon fontSize="small" />
   return <PlaylistAddCheckIcon fontSize="small" />
 }

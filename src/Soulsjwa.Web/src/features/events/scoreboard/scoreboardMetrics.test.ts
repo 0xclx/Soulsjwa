@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   activeGame,
+  activeGameRows,
   entryView,
+  gameHasActivity,
+  gameIsDone,
   gameLastCompletedAt,
+  groupByCategory,
+  matchesCompetitorSearch,
   objectiveState,
   recordingGames,
   showsTrial,
@@ -12,6 +17,7 @@ import {
 import type {
   GameBreakdown,
   ObjectiveDetail,
+  ScoreboardEntry,
   TrialObjectiveState,
   TrialProgress,
 } from '../../../types'
@@ -30,6 +36,7 @@ const game = (overrides: Partial<GameBreakdown> = {}): GameBreakdown => ({
   isTrialActive: false,
   hasTrialRun: false,
   trial: null,
+  rank: 1,
   ...overrides,
 })
 
@@ -316,5 +323,173 @@ describe('entryView scope', () => {
     expect(entryView([game({ eventGameId: 'practice', trial: trial() })]).scoringGameIds).toEqual(
       [],
     )
+  })
+})
+
+const entry = (overrides: Partial<ScoreboardEntry> = {}): ScoreboardEntry => ({
+  userId: 'u',
+  displayName: 'Player',
+  twitchLogin: 'player',
+  isLive: false,
+  totalScore: 0,
+  completedCount: 0,
+  isFinished: false,
+  lastCompletedAt: null,
+  totalInGameTimeMs: null,
+  rank: 1,
+  games: [],
+  failedCount: 0,
+  status: 'Pending',
+  ...overrides,
+})
+
+describe('gameIsDone', () => {
+  it('is done when completed and failed together cover every objective', () => {
+    expect(gameIsDone({ completedCount: 5, failedCount: 2, totalObjectives: 7 })).toBe(true)
+  })
+
+  it('is not done while an objective is still pending', () => {
+    expect(gameIsDone({ completedCount: 5, failedCount: 1, totalObjectives: 7 })).toBe(false)
+  })
+
+  it('is never done for a game without objectives', () => {
+    expect(gameIsDone({ completedCount: 0, failedCount: 0, totalObjectives: 0 })).toBe(false)
+  })
+})
+
+describe('activeGameRows', () => {
+  it('orders by the server-provided per-game rank, not by event rank or score', () => {
+    const entries = [
+      entry({ userId: 'leader', rank: 1, games: [game({ eventGameId: 'b', rank: 3, score: 99 })] }),
+      entry({ userId: 'second', rank: 2, games: [game({ eventGameId: 'b', rank: 1, score: 0 })] }),
+      entry({ userId: 'third', rank: 3, games: [game({ eventGameId: 'b', rank: 2, score: 50 })] }),
+    ]
+
+    const rows = activeGameRows(entries, 'b')
+
+    expect(rows.map((row) => row.entry.userId)).toEqual(['second', 'third', 'leader'])
+    expect(rows.map((row) => row.game.rank)).toEqual([1, 2, 3])
+  })
+
+  it("pairs each entry with that game's breakdown, not another game's", () => {
+    const active = game({ eventGameId: 'b', rank: 1, score: 10 })
+    const rows = activeGameRows(
+      [entry({ games: [game({ eventGameId: 'a', rank: 1, score: 500 }), active] })],
+      'b',
+    )
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.game).toBe(active)
+  })
+
+  it("keeps shared ranks as the server sent them, in the server's order", () => {
+    const entries = [
+      entry({ userId: 'x', games: [game({ eventGameId: 'b', rank: 1 })] }),
+      entry({ userId: 'y', games: [game({ eventGameId: 'b', rank: 1 })] }),
+      entry({ userId: 'z', games: [game({ eventGameId: 'b', rank: 3 })] }),
+    ]
+
+    const rows = activeGameRows(entries, 'b')
+
+    expect(rows.map((row) => [row.entry.userId, row.game.rank])).toEqual([
+      ['x', 1],
+      ['y', 1],
+      ['z', 3],
+    ])
+  })
+
+  it('skips entries without a breakdown for the game', () => {
+    const entries = [
+      entry({ userId: 'has', games: [game({ eventGameId: 'b', rank: 1 })] }),
+      entry({ userId: 'lacks', games: [game({ eventGameId: 'a', rank: 1 })] }),
+    ]
+
+    expect(activeGameRows(entries, 'b').map((row) => row.entry.userId)).toEqual(['has'])
+  })
+})
+
+describe('gameHasActivity', () => {
+  it('is false when every competitor is at 0 completed and 0 failed for the game', () => {
+    const entries = [
+      entry({ games: [game({ eventGameId: 'b' }), game({ eventGameId: 'a', completedCount: 4 })] }),
+      entry({ games: [game({ eventGameId: 'b' })] }),
+    ]
+
+    expect(gameHasActivity(entries, 'b')).toBe(false)
+  })
+
+  it('is true once any competitor has completed an objective in the game', () => {
+    const entries = [
+      entry({ games: [game({ eventGameId: 'b' })] }),
+      entry({ games: [game({ eventGameId: 'b', completedCount: 1 })] }),
+    ]
+
+    expect(gameHasActivity(entries, 'b')).toBe(true)
+  })
+
+  it('is true once any competitor has failed an objective in the game', () => {
+    expect(
+      gameHasActivity([entry({ games: [game({ eventGameId: 'b', failedCount: 1 })] })], 'b'),
+    ).toBe(true)
+  })
+
+  it('ignores trial progress, which is not official activity', () => {
+    const entries = [
+      entry({
+        games: [game({ eventGameId: 'b', trial: trial({ completedCount: 3, score: 30 }) })],
+      }),
+    ]
+
+    expect(gameHasActivity(entries, 'b')).toBe(false)
+  })
+})
+
+describe('matchesCompetitorSearch', () => {
+  const competitor = { displayName: 'Dark Knight', twitchLogin: 'solaire_of_astora' }
+
+  it('matches everyone for an empty or blank query', () => {
+    expect(matchesCompetitorSearch(competitor, '')).toBe(true)
+    expect(matchesCompetitorSearch(competitor, '   ')).toBe(true)
+  })
+
+  it('matches a display-name substring regardless of case', () => {
+    expect(matchesCompetitorSearch(competitor, 'KNIG')).toBe(true)
+  })
+
+  it('trims the query before matching', () => {
+    expect(matchesCompetitorSearch(competitor, '  dark knight  ')).toBe(true)
+  })
+
+  it('matches the twitch login', () => {
+    expect(matchesCompetitorSearch(competitor, 'Astora')).toBe(true)
+  })
+
+  it('does not match an unrelated query', () => {
+    expect(matchesCompetitorSearch(competitor, 'gwyn')).toBe(false)
+  })
+})
+
+describe('groupByCategory', () => {
+  const obj = (objectiveId: string, category: string | null) =>
+    objective({ objectiveId, name: objectiveId, category })
+
+  it('groups by category in first-seen order, keeping objective order within a group', () => {
+    const groups = groupByCategory([
+      obj('a1', 'Limgrave'),
+      obj('b1', 'Liurnia'),
+      obj('a2', 'Limgrave'),
+    ])
+
+    expect(groups.map(([category, items]) => [category, items.map((o) => o.objectiveId)])).toEqual([
+      ['Limgrave', ['a1', 'a2']],
+      ['Liurnia', ['b1']],
+    ])
+  })
+
+  it('puts objectives without a category, or with a blank one, under Other', () => {
+    const groups = groupByCategory([obj('x', null), obj('y', '  ')])
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.[0]).toBe('Other')
   })
 })

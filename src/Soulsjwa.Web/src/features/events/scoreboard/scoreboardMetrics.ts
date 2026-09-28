@@ -1,4 +1,9 @@
-import type { GameBreakdown, ObjectiveDetail, TrialObjectiveState } from '../../../types'
+import type {
+  GameBreakdown,
+  ObjectiveDetail,
+  ScoreboardEntry,
+  TrialObjectiveState,
+} from '../../../types'
 
 /**
  * The event's single active game, or undefined before an owner has enabled
@@ -145,4 +150,99 @@ export const gameLastCompletedAt = (game: Pick<GameBreakdown, 'objectives'>): st
     }
   }
   return latest
+}
+
+/**
+ * A competitor has nothing left to play in a game once every objective is
+ * either completed or failed. A game without objectives is never done.
+ */
+export const gameIsDone = (
+  game: Pick<GameBreakdown, 'completedCount' | 'failedCount' | 'totalObjectives'>,
+): boolean =>
+  game.totalObjectives > 0 && game.completedCount + game.failedCount >= game.totalObjectives
+
+/**
+ * Whether anyone has an official result in a game yet. Before that, every
+ * per-game rank is a tie, so `SharedPlace` would label everyone `#1`. Trial
+ * progress does not count: it never reaches a rank.
+ */
+export const gameHasActivity = (
+  entries: readonly Pick<ScoreboardEntry, 'games'>[],
+  eventGameId: string,
+): boolean =>
+  entries.some((entry) =>
+    entry.games.some(
+      (game) =>
+        game.eventGameId === eventGameId && (game.completedCount > 0 || game.failedCount > 0),
+    ),
+  )
+
+export interface ActiveGameRow {
+  entry: ScoreboardEntry
+  /** The entry's breakdown for the game being played. */
+  game: GameBreakdown
+}
+
+/**
+ * The current-game standings: each entry paired with its breakdown for
+ * `eventGameId`, ordered by the server's per-game `rank`. The client never
+ * computes a rank; ties keep the server's entry order (the sort is stable).
+ * Entries without a breakdown for the game are skipped.
+ */
+export const activeGameRows = (
+  entries: readonly ScoreboardEntry[],
+  eventGameId: string,
+): ActiveGameRow[] =>
+  entries
+    .flatMap((entry) => {
+      const game = entry.games.find((g) => g.eventGameId === eventGameId)
+      return game ? [{ entry, game }] : []
+    })
+    .sort((a, b) => a.game.rank - b.game.rank)
+
+/**
+ * Case-insensitive substring match on display name or Twitch login. A blank
+ * query matches everyone. Filtering only hides rows; the shown rank stays the
+ * server's.
+ */
+export const matchesCompetitorSearch = (
+  entry: Pick<ScoreboardEntry, 'displayName' | 'twitchLogin'>,
+  query: string,
+): boolean => {
+  const needle = query.trim().toLocaleLowerCase()
+  return (
+    needle === '' ||
+    entry.displayName.toLocaleLowerCase().includes(needle) ||
+    entry.twitchLogin.toLocaleLowerCase().includes(needle)
+  )
+}
+
+/** Accessible name of a game progress bar, e.g. "7 of 12 objectives". */
+export const progressLabel = (completed: number, total: number): string =>
+  `${completed} of ${total} objectives`
+
+/** Progress bar value, 0–100. A game without objectives reads as 0. */
+export const progressPercent = (completed: number, total: number): number =>
+  total > 0 ? Math.round((completed / total) * 100) : 0
+
+/** Fallback group label for objectives that have no category set. */
+const UNCATEGORIZED_LABEL = 'Other'
+
+/**
+ * Groups a game's objectives by category, preserving the first-seen order of
+ * both the categories and the objectives within each — same grouping as the
+ * OBS overlay's "objectives" view, so the in-app breakdown and the overlay
+ * never disagree about how objectives are organized.
+ */
+export const groupByCategory = (
+  objectives: readonly ObjectiveDetail[],
+): Array<[string, ObjectiveDetail[]]> => {
+  const byCategory = new Map<string, ObjectiveDetail[]>()
+  for (const objective of objectives) {
+    const category = objective.category?.trim() || UNCATEGORIZED_LABEL
+    const bucket = byCategory.get(category)
+    if (bucket) bucket.push(objective)
+    else byCategory.set(category, [objective])
+  }
+  return Array.from(byCategory)
 }

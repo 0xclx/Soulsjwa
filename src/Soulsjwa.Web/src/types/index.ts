@@ -11,6 +11,10 @@ export interface User {
   createdAt: string
   role: UserRole
   isAllowlisted: boolean
+  /** What Twitch reported at the last sign-in. */
+  twitchDisplayName: string
+  /** A name the user or an admin chose; `displayName` shows it when set. */
+  displayNameOverride: string | null
 }
 
 export interface ApiKey {
@@ -308,6 +312,12 @@ export interface AllowlistEntry {
   linkedDisplayName?: string
 }
 
+/** One event created by the admin "Create sample events" action. */
+export interface CreatedSampleEvent {
+  id: string
+  name: string
+}
+
 export interface AdminUserSummary {
   id: string
   twitchLogin: string
@@ -315,6 +325,8 @@ export interface AdminUserSummary {
   role: UserRole
   isAllowlisted: boolean
   createdAt: string
+  twitchDisplayName: string
+  displayNameOverride: string | null
 }
 
 export interface UserSearchResult {
@@ -333,6 +345,10 @@ export interface EventCompetitor {
   isStreamer: boolean
   isLive: boolean
   moderators: EventModerator[]
+  /** For the pre-start roster's Twitch link, which needs no scoreboard. */
+  twitchLogin: string
+  /** For the pre-start roster's avatar; null when the user has none. */
+  profileImageUrl: string | null
 }
 
 export interface EventGame {
@@ -459,6 +475,12 @@ export interface GameBreakdown {
    * total stays right when the visible game set is filtered.
    */
   trial: TrialProgress | null
+  /**
+   * The competitor's official rank among all competitors for this game alone,
+   * by the event's tie-break mode. Computed by the server; never re-derived
+   * here. Trial figures never move it.
+   */
+  rank: number
 }
 
 export interface TrialProgress {

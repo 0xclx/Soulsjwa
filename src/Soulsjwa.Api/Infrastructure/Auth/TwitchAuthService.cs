@@ -216,12 +216,12 @@ public class TwitchAuthService(
                 {
                     TwitchId = twitchUser.Id,
                     TwitchLogin = twitchUser.Login,
-                    DisplayName = twitchUser.DisplayName,
                     Email = twitchUser.Email,
                     ProfileImageUrl = twitchUser.ProfileImageUrl,
                     IsAllowlisted = true,
                     Role = isBootstrapAdmin ? UserRole.Admin : UserRole.User,
                 };
+                user.SetTwitchDisplayName(twitchUser.DisplayName);
                 dbContext.Users.Add(user);
             }
             else
@@ -229,7 +229,8 @@ public class TwitchAuthService(
                 if (PendingUserMarker.IsPending(user.TwitchId))
                     user.TwitchId = twitchUser.Id;
                 user.TwitchLogin = twitchUser.Login;
-                user.DisplayName = twitchUser.DisplayName;
+                // Refreshes the Twitch name; a manual override still wins.
+                user.SetTwitchDisplayName(twitchUser.DisplayName);
                 user.Email = twitchUser.Email;
                 user.ProfileImageUrl = twitchUser.ProfileImageUrl;
                 user.IsAllowlisted = true;

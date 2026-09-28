@@ -67,6 +67,7 @@ public class ScoreboardEndpointTests : ApiTestBase
         entry.Games.Should().ContainSingle();
         entry.Games[0].Score.Should().Be(15);
         entry.Games[0].Objectives.Should().ContainSingle(o => o.IsCompleted);
+        entry.Games[0].Rank.Should().Be(1, "the per-game rank is on the wire");
     }
 
     [Fact]
@@ -143,7 +144,7 @@ public class ScoreboardEndpointTests : ApiTestBase
         string Status = nameof(ObjectiveOutcome.Pending));
     private record GameBreakdownDto(
         Guid EventGameId, string GameName, int Score, int CompletedCount,
-        int TotalObjectives, List<ObjectiveDetailDto> Objectives);
+        int TotalObjectives, List<ObjectiveDetailDto> Objectives, int Rank = 0);
     private record ObjectiveDetailDto(
         Guid ObjectiveId, string Name, int Score, string? Category, bool IsCompleted, DateTime? CompletedAt);
 }

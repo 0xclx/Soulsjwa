@@ -29,10 +29,10 @@ public static class Fixtures
         {
             TwitchId = $"twitch_{suffix}",
             TwitchLogin = $"{prefix}_{suffix}",
-            DisplayName = $"{prefix}_{suffix}",
             Role = role,
             IsAllowlisted = true,
         };
+        user.SetTwitchDisplayName($"{prefix}_{suffix}");
         db.Users.Add(user);
         await db.SaveChangesAsync();
         return user;

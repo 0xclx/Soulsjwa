@@ -116,8 +116,10 @@ public static class DiagnosticsConfig
         public const int AdminUserRoleSet = 3000;
         public const int AllowlistLoginAdded = 3001;
         public const int AllowlistLoginRemoved = 3002;
+        public const int AdminSampleEventsCreated = 3003;
         public const int ApiKeyCreated = 4000;
         public const int ApiKeyRevoked = 4001;
+        public const int UserDisplayNameChanged = 4002;
         public const int ConnectorSubmissionProcessed = 5001;
         public const int EventCreated = 6000;
         public const int EventUpdated = 6001;
@@ -192,8 +194,10 @@ public static class DiagnosticsConfig
         public const string AdminUserRoleSet = nameof(AdminUserRoleSet);
         public const string AllowlistLoginAdded = nameof(AllowlistLoginAdded);
         public const string AllowlistLoginRemoved = nameof(AllowlistLoginRemoved);
+        public const string AdminSampleEventsCreated = nameof(AdminSampleEventsCreated);
         public const string ApiKeyCreated = nameof(ApiKeyCreated);
         public const string ApiKeyRevoked = nameof(ApiKeyRevoked);
+        public const string UserDisplayNameChanged = nameof(UserDisplayNameChanged);
         public const string ConnectorSubmissionProcessed = nameof(ConnectorSubmissionProcessed);
         public const string EventCreated = nameof(EventCreated);
         public const string EventUpdated = nameof(EventUpdated);

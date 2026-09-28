@@ -11,7 +11,7 @@ Users authenticate via their Twitch account. The API acts as an OAuth2 client:
 1. **Login initiation** — `GET /api/v1/auth/twitch/login` redirects the user to Twitch's authorization page
 2. **Callback** — Twitch redirects back to `GET /api/v1/auth/twitch/callback` with an authorization code
 3. **Token exchange** — The API exchanges the code for a Twitch access token
-4. **User resolution** — The API fetches the user's Twitch profile and creates or updates a `User` record
+4. **User resolution** — The API fetches the user's Twitch profile and creates or updates a `User` record (the Twitch display name goes to `TwitchDisplayName`; a custom `DisplayNameOverride` the user or an admin set is never overwritten, so it stays the shown `DisplayName`)
 5. **Refresh cookie issuance** — The API generates a refresh token and stores only its hash in the database
 6. **Redirect** — The user is redirected to the frontend; the refresh token is set as an HttpOnly cookie
 7. **Access token fetch** — The frontend calls `POST /api/v1/auth/refresh` with the cookie to receive the in-memory JWT access token

@@ -105,7 +105,14 @@ export function buildSampleScoreboard(
   entries.sort((a, b) => b.totalScore - a.totalScore || a.displayName.localeCompare(b.displayName))
   return {
     tieBreakMode: 'ByTime',
-    entries: entries.map((entry, i) => ({ ...entry, rank: i + 1 })),
+    entries: entries.map((entry, i) => ({
+      ...entry,
+      rank: i + 1,
+      games: entry.games.map((game) => ({
+        ...game,
+        rank: sampleGameRank(entries, i, game),
+      })),
+    })),
   }
 }
 
@@ -158,5 +165,26 @@ function sampleGameBreakdown(
     isTrialActive: false,
     hasTrialRun: false,
     trial: null,
+    rank: 0,
   }
+}
+
+/**
+ * Strict ordinal within one game, like the sample's event rank: that game's
+ * score, then board order.
+ */
+function sampleGameRank(
+  entries: readonly { games: readonly GameBreakdown[] }[],
+  entryIndex: number,
+  game: GameBreakdown,
+): number {
+  const gameScore = (entry: { games: readonly GameBreakdown[] }) =>
+    entry.games.find((g) => g.eventGameId === game.eventGameId)?.score ?? 0
+  return (
+    1 +
+    entries.filter(
+      (other, j) =>
+        gameScore(other) > game.score || (gameScore(other) === game.score && j < entryIndex),
+    ).length
+  )
 }

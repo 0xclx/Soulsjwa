@@ -15,7 +15,7 @@ export const EventTokensPage = () => {
   // picker — `scores` (above) is the lightweight per-competitor summary this
   // page otherwise needs and has no per-game breakdown, so the trial flag is
   // read from the full scoreboard instead.
-  const { data: scoreboard } = useScoreboard(eventId, event.isStarted)
+  const { data: scoreboard } = useScoreboard(eventId, { live: event.isStarted })
 
   if (isLoadingUser) {
     return <LoadingState label="Loading user…" />

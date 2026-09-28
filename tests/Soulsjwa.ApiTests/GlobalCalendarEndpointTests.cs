@@ -101,6 +101,39 @@ public class GlobalCalendarEndpointTests : ApiTestBase
             "the create must have evicted the cached global calendar response");
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("Z")]
+    public async Task GetGlobalCalendar_ReadsTheWindowAsUtc_WithOrWithoutAZone(string suffix)
+    {
+        // A two-minute window around the entry's start: read as UTC it
+        // overlaps the entry; read as the server's local time (a non-UTC
+        // zone in this assembly) it lands hours away, in either direction.
+        var (owner, _) = await TestAuth.CreateUserWithApiKeyAsync(Factory.Services, "owner");
+        var (comp, _) = await TestAuth.CreateUserWithApiKeyAsync(Factory.Services, "comp");
+        var (ev, _) = await SeedEventWithGameAsync(owner.Id, "Window event", comp.Id);
+        var startsAt = new DateTime(2026, 10, 1, 18, 0, 0, DateTimeKind.Utc);
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.CalendarEntries.Add(new CalendarEntry
+            {
+                EventId = ev.Id,
+                Title = $"Window {suffix}",
+                StartsAt = startsAt,
+                EndsAt = startsAt.AddHours(2),
+                CreatedById = owner.Id,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var from = Uri.EscapeDataString(startsAt.AddMinutes(-1).ToString("yyyy-MM-ddTHH:mm:ss") + suffix);
+        var to = Uri.EscapeDataString(startsAt.AddMinutes(1).ToString("yyyy-MM-ddTHH:mm:ss") + suffix);
+        var calendar = await Client.GetFromJsonAsync<CalendarDto>($"/api/v1/calendar?from={from}&to={to}");
+
+        calendar!.Entries.Should().ContainSingle(e => e.EventId == ev.Id);
+    }
+
     private async Task<(Event Ev, EventGame Eg)> SeedEventWithGameAsync(Guid ownerId, string eventName, Guid competitorId)
     {
         using var scope = Factory.Services.CreateScope();

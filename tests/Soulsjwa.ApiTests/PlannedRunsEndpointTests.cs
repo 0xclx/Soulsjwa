@@ -52,9 +52,10 @@ public class PlannedRunsEndpointTests : ApiTestBase
     [InlineData("2026-10-01T18:00:00Z")]
     [InlineData("2026-10-01T20:00:00+02:00")]
     [InlineData("2026-10-01T18:00:00")]
-    public async Task Create_AcceptsZuluOffsetAndZonelessTimestamps(string startsAt)
+    public async Task Create_AcceptsZuluOffsetAndZonelessTimestamps_AsTheSameUtcInstant(string startsAt)
     {
-        // The zone-less form must no longer 500.
+        // The zone-less form must no longer 500, and is UTC, never the
+        // server's local time.
         var (owner, _) = await TestAuth.CreateUserWithApiKeyAsync(Factory.Services, "owner");
         var (comp, compKey) = await TestAuth.CreateUserWithApiKeyAsync(Factory.Services, "comp",
             role: Soulsjwa.Api.Features.Auth.Entities.UserRole.User);
@@ -66,6 +67,8 @@ public class PlannedRunsEndpointTests : ApiTestBase
             new { eventGameId = eg.Id, startsAt, endsAt = "2026-10-01T22:00:00Z" });
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await response.Content.ReadFromJsonAsync<RunDto>();
+        body!.StartsAt.ToUniversalTime().Should().Be(new DateTime(2026, 10, 1, 18, 0, 0, DateTimeKind.Utc));
     }
 
     [Fact]

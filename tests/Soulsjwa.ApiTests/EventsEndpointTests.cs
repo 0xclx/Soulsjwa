@@ -188,6 +188,42 @@ public class EventsEndpointTests : ApiTestBase
         item.GetProperty("gameCount").GetInt32().Should().Be(0);
     }
 
+    [Fact]
+    public async Task EventResponse_CompetitorsCarryTwitchLoginAndAvatar_OnDetailAndFeatured()
+    {
+        // The pre-start roster renders avatar and Twitch link from the event
+        // response alone, with no scoreboard or extra user fetch.
+        var (admin, key) = await TestAuth.CreateUserWithApiKeyAsync(Factory.Services, "roster");
+        var (bare, _) = await TestAuth.CreateUserWithApiKeyAsync(Factory.Services, "bare");
+        var ev = await SeedEventAsync(admin.Id, "roster-shape");
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var withAvatar = await db.Users.SingleAsync(u => u.Id == admin.Id);
+            withAvatar.ProfileImageUrl = "https://example.test/avatar.png";
+            db.EventCompetitors.AddRange(
+                new EventCompetitor { EventId = ev.Id, UserId = admin.Id },
+                new EventCompetitor { EventId = ev.Id, UserId = bare.Id });
+            await db.SaveChangesAsync();
+        }
+        var client = TestAuth.CreateAuthenticatedClient(Factory, key);
+        (await client.PostAsync($"/api/v1/events/{ev.Id}/feature", null)).EnsureSuccessStatusCode();
+
+        foreach (var url in new[] { $"/api/v1/events/{ev.Id}", "/api/v1/events/featured" })
+        {
+            var json = await Client.GetFromJsonAsync<System.Text.Json.JsonElement>(url);
+            var competitors = json.GetProperty("competitors").EnumerateArray()
+                .ToDictionary(c => c.GetProperty("userId").GetGuid());
+
+            competitors[admin.Id].GetProperty("twitchLogin").GetString().Should().Be(admin.TwitchLogin, url);
+            competitors[admin.Id].GetProperty("profileImageUrl").GetString()
+                .Should().Be("https://example.test/avatar.png", url);
+            competitors[bare.Id].GetProperty("twitchLogin").GetString().Should().Be(bare.TwitchLogin, url);
+            competitors[bare.Id].GetProperty("profileImageUrl").ValueKind
+                .Should().Be(System.Text.Json.JsonValueKind.Null, "a user without an avatar is sent as null, not omitted ({0})", url);
+        }
+    }
+
     private async Task<Event> SeedEventAsync(Guid ownerId, string name, string? urlAlias = null)
     {
         using var scope = Factory.Services.CreateScope();

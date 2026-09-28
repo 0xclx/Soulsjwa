@@ -57,7 +57,9 @@ public sealed record EventCompetitorResponse(
     DateTime JoinedAt,
     bool IsStreamer,
     bool IsLive,
-    List<EventModeratorResponse> Moderators);
+    List<EventModeratorResponse> Moderators,
+    string TwitchLogin,
+    string? ProfileImageUrl);
 
 public sealed record EventGameResponse(
     Guid EventGameId,
@@ -763,7 +765,9 @@ public partial class EventsEndpoint : IEndpoint
             c.Moderators
                 .OrderBy(m => m.AddedAt)
                 .Select(m => new EventModeratorResponse(m.ModeratorUserId, m.Moderator.DisplayName, m.AddedAt))
-                .ToList())).ToList(),
+                .ToList(),
+            c.User.TwitchLogin,
+            c.User.ProfileImageUrl)).ToList(),
         ev.EventGames.OrderBy(eg => eg.SortOrder).Select(eg => new EventGameResponse(
             eg.Id,
             eg.KnownGameId,

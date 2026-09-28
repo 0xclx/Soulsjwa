@@ -50,6 +50,7 @@ const baseGame: GameBreakdown = {
   isTrialActive: false,
   hasTrialRun: false,
   trial: null,
+  rank: 1,
 }
 
 function renderGame(game: GameBreakdown) {

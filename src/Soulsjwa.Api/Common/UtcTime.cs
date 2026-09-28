@@ -3,12 +3,12 @@ namespace Soulsjwa.Api.Common;
 /// <summary>
 /// Converts an inbound timestamp to a UTC <see cref="DateTime"/> for a
 /// <c>timestamp with time zone</c> column. Request DTOs should use
-/// <see cref="DateTimeOffset"/>: a zone-less wire value then binds with the
-/// server's offset rather than <see cref="DateTimeKind.Unspecified"/> (silently
-/// wrong), and an offset-bearing value round-trips exactly. Use the
-/// <see cref="DateTimeOffset"/> overload at every API boundary; the
-/// <see cref="DateTime"/> one is only for values already in memory as a
-/// <see cref="DateTime"/> that need re-normalising.
+/// <see cref="DateTimeOffset"/>: an offset-bearing value round-trips exactly,
+/// and <see cref="UtcJsonConverters"/> binds a zone-less wire value as UTC —
+/// never with the server's local offset. Use the <see cref="DateTimeOffset"/>
+/// overload at every API boundary; the <see cref="DateTime"/> one is only for
+/// values already in memory as a <see cref="DateTime"/> that need
+/// re-normalising.
 /// </summary>
 public static class UtcTime
 {

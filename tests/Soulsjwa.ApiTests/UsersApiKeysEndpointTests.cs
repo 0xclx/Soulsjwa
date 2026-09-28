@@ -72,6 +72,22 @@ public class UsersApiKeysEndpointTests : ApiTestBase
     }
 
     [Fact]
+    public async Task CreateApiKey_ReadsAZonelessExpiryAsUtc()
+    {
+        var (_, key) = await TestAuth.CreateUserWithApiKeyAsync(Factory.Services);
+        var client = TestAuth.CreateAuthenticatedClient(Factory, key);
+
+        var response = await client.PostAsJsonAsync("/api/v1/users/me/api-keys",
+            new { name = "zoneless-expiry", expiresAt = "2030-01-01T12:00:00" });
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var keys = await client.GetFromJsonAsync<List<ApiKeyDto>>("/api/v1/users/me/api-keys");
+        keys!.Single(k => k.Name == "zoneless-expiry").ExpiresAt!.Value.ToUniversalTime()
+            .Should().Be(new DateTime(2030, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+                "a zone-less timestamp is UTC, never the server's local time");
+    }
+
+    [Fact]
     public async Task ListApiKeys_DoesNotLeakHashAndOnlyReturnsCallerKeys()
     {
         var (_, aliceKey) = await TestAuth.CreateUserWithApiKeyAsync(Factory.Services, "alice");
