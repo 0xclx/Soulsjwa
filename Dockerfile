@@ -79,7 +79,7 @@ COPY --from=frontend-build /app/src/Soulsjwa.Web/dist-twitch /publish/twitch-ext
 COPY --from=connector-build /connector-dist/ /publish/wwwroot/downloads/
 
 # Runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS runtime
 WORKDIR /app
 # COPY with --chown so the published assets are readable/executable by the
 # non-root `app` user (UID 1654) we drop to below.
