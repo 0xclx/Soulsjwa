@@ -14,7 +14,7 @@ RUN npm run build && npm run build:twitch
 # net10.0-windows projects restore/publish on non-Windows hosts). The
 # resulting single .exe is later copied into the API's wwwroot/downloads so
 # the running container can serve it directly (no zip/unzip round trip).
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS connector-build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS connector-build
 WORKDIR /app
 COPY *.slnx ./
 COPY src/Soulsjwa.Connector/*.csproj src/Soulsjwa.Connector/
@@ -53,7 +53,7 @@ RUN VERSION="$(dotnet msbuild src/Soulsjwa.Connector/Soulsjwa.Connector.csproj \
        "/connector-dist/Soulsjwa.Connector-latest-win-x64.exe"
 
 # Build .NET
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS api-build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS api-build
 WORKDIR /app
 COPY *.slnx ./
 COPY src/Soulsjwa.Api/*.csproj src/Soulsjwa.Api/
